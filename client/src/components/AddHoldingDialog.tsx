@@ -76,14 +76,26 @@ const ASSETS_BY_CATEGORY: Record<
 > = {
   stock: [
     { symbol: "AAPL", type: "stock", name: "Apple Inc." },
+    { symbol: "AMD", type: "stock", name: "Advanced Micro Devices Inc." },
+    { symbol: "BABA", type: "stock", name: "Alibaba Group Holding Limited" },
+    { symbol: "COIN", type: "stock", name: "Coinbase Global Inc." },
+    { symbol: "DBB", type: "stock", name: "Invesco DB Base Metals Fund" },
+    { symbol: "FIG", type: "stock", name: "FIG" },
     { symbol: "GOOGL", type: "stock", name: "Alphabet Inc." },
-    { symbol: "TSLA", type: "stock", name: "Tesla Inc." },
-    { symbol: "MSFT", type: "stock", name: "Microsoft Corporation" },
     { symbol: "AMZN", type: "stock", name: "Amazon.com Inc." },
+    { symbol: "JPM", type: "stock", name: "JPMorgan Chase & Co." },
+    { symbol: "META", type: "stock", name: "Meta Platforms Inc." },
+    { symbol: "MSFT", type: "stock", name: "Microsoft Corporation" },
+    { symbol: "NFLX", type: "stock", name: "Netflix Inc." },
+    { symbol: "NVDA", type: "stock", name: "NVIDIA Corporation" },
+    { symbol: "QQQ", type: "stock", name: "Invesco QQQ Trust" },
+    { symbol: "TSLA", type: "stock", name: "Tesla Inc." },
+    { symbol: "USO", type: "stock", name: "United States Oil Fund LP" },
   ],
   crypto: [
     { symbol: "BTC", type: "crypto", name: "Bitcoin" },
     { symbol: "ETH", type: "crypto", name: "Ethereum" },
+    { symbol: "OKB", type: "crypto", name: "OKB" },
   ],
   precious_metals: [
     { symbol: "GLD", type: "stock", name: "SPDR Gold Shares" },

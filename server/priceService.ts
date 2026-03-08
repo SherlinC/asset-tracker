@@ -64,14 +64,34 @@ const mockCryptoPrices: Record<string, CryptoPrice> = {
     market_cap_change_percentage_24h: -4.18,
     price_change_percentage_24h: -4.18,
   },
+  OKB: {
+    id: "okb",
+    symbol: "okb",
+    current_price: 52.4,
+    market_cap: 3140000000,
+    market_cap_change_percentage_24h: 1.24,
+    price_change_percentage_24h: 1.24,
+  },
 };
 
 const mockStockPrices: Record<string, StockQuote> = {
   AAPL: { symbol: "AAPL", price: 255.42, change: 7.38, changePercent: 2.98 },
+  AMD: { symbol: "AMD", price: 167.25, change: 3.12, changePercent: 1.9 },
   GOOGL: { symbol: "GOOGL", price: 195.5, change: 2.15, changePercent: 1.11 },
+  GOOG: { symbol: "GOOG", price: 197.2, change: 2.3, changePercent: 1.18 },
   TSLA: { symbol: "TSLA", price: 402.75, change: -5.25, changePercent: -1.29 },
   MSFT: { symbol: "MSFT", price: 470.29, change: 4.34, changePercent: 0.93 },
   AMZN: { symbol: "AMZN", price: 238.43, change: -1.0, changePercent: -0.31 },
+  META: { symbol: "META", price: 620.5, change: 12.3, changePercent: 2.02 },
+  BABA: { symbol: "BABA", price: 85.4, change: -1.2, changePercent: -1.39 },
+  COIN: { symbol: "COIN", price: 248.6, change: 5.2, changePercent: 2.14 },
+  DBB: { symbol: "DBB", price: 18.75, change: 0.12, changePercent: 0.64 },
+  FIG: { symbol: "FIG", price: 10.25, change: 0.18, changePercent: 1.79 },
+  JPM: { symbol: "JPM", price: 236.4, change: 1.45, changePercent: 0.62 },
+  NFLX: { symbol: "NFLX", price: 982.3, change: 16.4, changePercent: 1.7 },
+  NVDA: { symbol: "NVDA", price: 142.6, change: 4.1, changePercent: 2.96 },
+  QQQ: { symbol: "QQQ", price: 520.8, change: 8.5, changePercent: 1.66 },
+  USO: { symbol: "USO", price: 82.15, change: 0.45, changePercent: 0.55 },
 };
 
 // Binance symbol suffix (all against USDT)
@@ -85,6 +105,7 @@ const coinGeckoIdMap: Record<string, string> = {
   ADA: "cardano",
   SOL: "solana",
   DOGE: "dogecoin",
+  OKB: "okb",
 };
 
 /**
