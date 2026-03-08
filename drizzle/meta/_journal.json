@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1769498482119,
+      "tag": "0000_aromatic_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1769499718191,
+      "tag": "0001_careless_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1770714292793,
+      "tag": "0002_known_serpent_society",
+      "breakpoints": true
+    }
+  ]
+}
