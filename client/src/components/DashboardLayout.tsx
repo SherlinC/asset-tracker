@@ -1,4 +1,4 @@
-import { LogOut, PanelLeft, Users, Wallet } from "lucide-react";
+import { Brain, Globe, LogOut, PanelLeft, Wallet } from "lucide-react";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -24,15 +24,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getLoginUrl, isOAuthConfigured } from "@/const";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
 
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-
-const menuItems = [
-  { icon: Wallet, label: "Asset Portfolio", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
-];
 
 const SIDEBAR_WIDTH = 280;
 
@@ -43,25 +39,48 @@ export default function DashboardLayout({
 }) {
   const { loading, user } = useAuth();
   const [, setLocation] = useLocation();
+  const { language } = useLanguage();
+  const text =
+    language === "zh"
+      ? {
+          signInToContinue: "登录后继续",
+          devMode: "开发模式",
+          authHint: "访问该仪表盘需要先完成认证，请继续登录流程。",
+          devHint:
+            "请确认 .env 中已配置 DEV_USER_EMAIL 和 DATABASE_URL，并已启动 MySQL，然后刷新本页。",
+          signIn: "登录",
+          retry: "刷新重试",
+          backHome: "返回首页",
+        }
+      : {
+          signInToContinue: "Sign in to continue",
+          devMode: "Development mode",
+          authHint:
+            "Access to this dashboard requires authentication. Continue to launch the login flow.",
+          devHint:
+            "Make sure DEV_USER_EMAIL and DATABASE_URL are configured in .env, MySQL is running, then refresh this page.",
+          signIn: "Sign in",
+          retry: "Retry",
+          backHome: "Back home",
+        };
 
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return <DashboardLayoutSkeleton />;
   }
 
   if (!user) {
     const loginUrl = getLoginUrl();
-    const isSamePage = typeof window !== "undefined" && loginUrl === window.location.href;
+    const isSamePage =
+      typeof window !== "undefined" && loginUrl === window.location.href;
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
             <h1 className="text-2xl font-semibold tracking-tight text-center">
-              {isOAuthConfigured() ? "Sign in to continue" : "开发模式"}
+              {isOAuthConfigured() ? text.signInToContinue : text.devMode}
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              {isOAuthConfigured()
-                ? "Access to this dashboard requires authentication. Continue to launch the login flow."
-                : "请确认 .env 中已配置 DEV_USER_EMAIL 和 DATABASE_URL，并已启动 MySQL，然后刷新本页。"}
+              {isOAuthConfigured() ? text.authHint : text.devHint}
             </p>
           </div>
           <div className="flex flex-col gap-3 w-full">
@@ -73,7 +92,7 @@ export default function DashboardLayout({
                 size="lg"
                 className="w-full shadow-lg hover:shadow-xl transition-all"
               >
-                Sign in
+                {text.signIn}
               </Button>
             ) : (
               <Button
@@ -82,7 +101,7 @@ export default function DashboardLayout({
                 variant="outline"
                 className="w-full"
               >
-                刷新重试
+                {text.retry}
               </Button>
             )}
             <Button
@@ -90,7 +109,7 @@ export default function DashboardLayout({
               onClick={() => setLocation("/")}
               className="w-full"
             >
-              返回首页
+              {text.backHome}
             </Button>
           </div>
         </div>
@@ -109,11 +128,40 @@ export default function DashboardLayout({
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const { language, toggleLanguage } = useLanguage();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const menuItems =
+    language === "zh"
+      ? [
+          { icon: Wallet, label: "资产组合", path: "/dashboard" },
+          { icon: Brain, label: "AI 策略", path: "/ai-strategy" },
+        ]
+      : [
+          { icon: Wallet, label: "Asset Portfolio", path: "/dashboard" },
+          { icon: Brain, label: "AI Strategy", path: "/ai-strategy" },
+        ];
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const text =
+    language === "zh"
+      ? {
+          expand: "展开侧边栏",
+          collapse: "收起侧边栏",
+          navigation: "导航",
+          logout: "登出",
+          menu: "菜单",
+          switchToLanguage: "English",
+        }
+      : {
+          expand: "Expand sidebar",
+          collapse: "Collapse sidebar",
+          navigation: "Navigation",
+          logout: "Log out",
+          menu: "Menu",
+          switchToLanguage: "中文",
+        };
 
   return (
     <>
@@ -124,14 +172,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               <button
                 onClick={toggleSidebar}
                 className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label={isCollapsed ? "展开侧边栏" : "收起侧边栏"}
-                title={isCollapsed ? "展开侧边栏" : "收起侧边栏"}
+                aria-label={isCollapsed ? text.expand : text.collapse}
+                title={isCollapsed ? text.expand : text.collapse}
               >
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               <div className="flex items-center gap-2 min-w-0 group-data-[collapsible=icon]:hidden">
                 <span className="font-semibold tracking-tight truncate">
-                  Navigation
+                  {text.navigation}
                 </span>
               </div>
             </div>
@@ -181,6 +229,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
+                  onClick={toggleLanguage}
+                  className="cursor-pointer"
+                >
+                  <Globe className="mr-2 h-4 w-4" />
+                  <span>{text.switchToLanguage}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={async () => {
                     await logout();
                     setLocation("/");
@@ -188,7 +243,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>登出</span>
+                  <span>{text.logout}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -205,7 +260,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
+                    {activeMenuItem?.label ?? text.menu}
                   </span>
                 </div>
               </div>

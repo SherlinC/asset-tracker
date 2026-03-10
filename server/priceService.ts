@@ -43,35 +43,9 @@ export interface StockQuote {
 const mockExchangeRates: Record<string, number> = {
   USD: 7.2,
   HKD: 0.92,
+  EUR: 7.8,
   JPY: 0.048,
   CNY: 1,
-};
-
-const mockCryptoPrices: Record<string, CryptoPrice> = {
-  BTC: {
-    id: "bitcoin",
-    symbol: "btc",
-    current_price: 68973,
-    market_cap: 1378720128791.6052,
-    market_cap_change_percentage_24h: -1.86,
-    price_change_percentage_24h: -1.86,
-  },
-  ETH: {
-    id: "ethereum",
-    symbol: "eth",
-    current_price: 2026.34,
-    market_cap: 244588032962.79095,
-    market_cap_change_percentage_24h: -4.18,
-    price_change_percentage_24h: -4.18,
-  },
-  OKB: {
-    id: "okb",
-    symbol: "okb",
-    current_price: 52.4,
-    market_cap: 3140000000,
-    market_cap_change_percentage_24h: 1.24,
-    price_change_percentage_24h: 1.24,
-  },
 };
 
 const mockStockPrices: Record<string, StockQuote> = {
@@ -106,6 +80,20 @@ const coinGeckoIdMap: Record<string, string> = {
   SOL: "solana",
   DOGE: "dogecoin",
   OKB: "okb",
+};
+
+type CryptoComparePriceResponse = {
+  RAW?: Record<
+    string,
+    Record<
+      string,
+      {
+        PRICE?: number;
+        MKTCAP?: number;
+        CHANGEPCT24HOUR?: number;
+      }
+    >
+  >;
 };
 
 /**
@@ -155,11 +143,11 @@ async function fetchCryptoPricesFromBinance(
 
 /**
  * Fetch exchange rates from real API or fallback to mock data
- * Returns rates for USD and HKD against CNY
+ * Returns rates: CNY per 1 unit of currency (USD, HKD, EUR, etc.)
  */
 export async function fetchExchangeRates(): Promise<Record<string, number>> {
   try {
-    // Try to fetch from ExchangeRate-API (free tier available)
+    // Try to fetch from ExchangeRate-API (free tier available), base CNY
     const response = await fetch(
       "https://api.exchangerate-api.com/v4/latest/CNY",
       {
@@ -170,14 +158,19 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
     if (response.ok) {
       const data = (await response.json()) as { rates: Record<string, number> };
       const r = data.rates;
+      // API: 1 CNY = r[X] units of X → 1 X = 1/r[X] CNY
+      const usd = r.USD != null ? 1 / r.USD : 7.2;
+      const hkd = r.HKD != null ? 1 / r.HKD : 0.92;
+      const eur = r.EUR != null ? 1 / r.EUR : 7.8;
       const result: Record<string, number> = {
-        USD: 1 / (r.USD || 7.2),
-        HKD: 1 / (r.HKD || 0.92),
+        USD: usd,
+        HKD: hkd,
+        EUR: eur,
         JPY: r.JPY != null ? 1 / r.JPY : 0.048,
         CNY: 1,
       };
       console.log(
-        `[ExchangeRate-API] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}`
+        `[ExchangeRate-API] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}`
       );
       return result;
     }
@@ -191,7 +184,7 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
 }
 
 /**
- * Fetch cryptocurrency prices: Binance (primary) -> CoinGecko (fallback) -> mock
+ * Fetch cryptocurrency prices: Binance (primary) -> CoinGecko (fallback)
  * Binance is used first (no API key, very stable for BTC/ETH etc.)
  */
 export async function fetchCryptoPrices(
@@ -204,22 +197,73 @@ export async function fetchCryptoPrices(
     return binanceResult;
   }
   if (Object.keys(binanceResult).length > 0) {
-    // Got some from Binance; fill missing from CoinGecko
-    const geckoResult = await fetchCryptoPricesFromCoinGecko(missing);
-    return { ...binanceResult, ...geckoResult };
+    const cryptoCompareResult =
+      await fetchCryptoPricesFromCryptoCompare(missing);
+    const stillMissing = missing.filter(s => !cryptoCompareResult[s]);
+    const geckoResult =
+      stillMissing.length > 0
+        ? await fetchCryptoPricesFromCoinGecko(stillMissing)
+        : {};
+    return { ...binanceResult, ...cryptoCompareResult, ...geckoResult };
   }
 
-  // 2) Fallback to CoinGecko
-  const geckoResult = await fetchCryptoPricesFromCoinGecko(symbols);
-  if (Object.keys(geckoResult).length > 0) return geckoResult;
-
-  // 3) Mock only when both APIs fail
-  console.warn("[Crypto] Both Binance and CoinGecko failed, using mock prices");
-  const result: Record<string, CryptoPrice> = {};
-  for (const symbol of symbols) {
-    if (mockCryptoPrices[symbol]) result[symbol] = mockCryptoPrices[symbol];
+  const cryptoCompareResult = await fetchCryptoPricesFromCryptoCompare(symbols);
+  const stillMissing = symbols.filter(s => !cryptoCompareResult[s]);
+  if (stillMissing.length === 0) {
+    return cryptoCompareResult;
   }
-  return result;
+
+  const geckoResult = await fetchCryptoPricesFromCoinGecko(stillMissing);
+  if (
+    Object.keys(cryptoCompareResult).length > 0 ||
+    Object.keys(geckoResult).length > 0
+  ) {
+    return { ...cryptoCompareResult, ...geckoResult };
+  }
+
+  console.warn(
+    "[Crypto] Binance, CryptoCompare, and CoinGecko failed, returning no live prices"
+  );
+  return {};
+}
+
+async function fetchCryptoPricesFromCryptoCompare(
+  symbols: string[]
+): Promise<Record<string, CryptoPrice>> {
+  if (symbols.length === 0) return {};
+
+  try {
+    const response = await fetch(
+      `https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${symbols.join(",")}&tsyms=USD`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!response.ok) return {};
+
+    const data = (await response.json()) as CryptoComparePriceResponse;
+    const raw = data.RAW ?? {};
+    const result: Record<string, CryptoPrice> = {};
+
+    for (const symbol of symbols) {
+      const usdData = raw[symbol]?.USD;
+      const price = usdData?.PRICE;
+      if (price != null && Number.isFinite(price) && price > 0) {
+        const change24h = usdData?.CHANGEPCT24HOUR ?? null;
+        result[symbol] = {
+          id: coinGeckoIdMap[symbol] || symbol.toLowerCase(),
+          symbol: symbol.toLowerCase(),
+          current_price: price,
+          market_cap: usdData?.MKTCAP ?? null,
+          market_cap_change_percentage_24h: change24h,
+          price_change_percentage_24h: change24h,
+        };
+      }
+    }
+
+    return result;
+  } catch (err) {
+    console.warn("[CryptoCompare] Fallback failed:", (err as Error).message);
+    return {};
+  }
 }
 
 /**
@@ -441,7 +485,256 @@ function getStockPricesFallback(symbols: string[]): Record<string, StockQuote> {
 }
 
 /**
- * Fetch a single asset price (for currency or crypto)
+ * 天天基金/东方财富 实时净值估算（人民币）
+ * https://fundgz.1234567.com.cn/js/{code}.js 返回 jsonpgz({...});
+ */
+async function fetchFundPriceFromEastMoney(
+  code: string
+): Promise<{ priceCNY: number; changePercent: number } | null> {
+  try {
+    const url = `https://fundgz.1234567.com.cn/js/${encodeURIComponent(code)}.js?v=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    const match = text.match(/jsonpgz\(([\s\S]*)\)\s*;?\s*$/);
+    if (!match) return null;
+    const payload = match[1]?.trim();
+    if (!payload) return null;
+    const data = JSON.parse(payload) as {
+      gsz?: string;
+      dwjz?: string;
+      gszzl?: string;
+    };
+    const priceStr = data.gsz || data.dwjz;
+    const price = priceStr ? parseFloat(priceStr) : NaN;
+    const changeStr = data.gszzl ?? "0";
+    const changePercent = parseFloat(changeStr) || 0;
+    if (!Number.isFinite(price) || price <= 0) return null;
+    console.log(
+      `[EastMoney Fund] ${code}: ¥${price.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+    );
+    return { priceCNY: price, changePercent };
+  } catch (err) {
+    console.warn(`[EastMoney Fund] ${code}:`, (err as Error).message);
+    return null;
+  }
+}
+
+type EastMoneyEtfQuoteResponse = {
+  data?: {
+    f43?: number;
+    f170?: number;
+  };
+};
+
+type EastMoneyLatestNavResponse = {
+  Data?: {
+    LSJZList?: Array<{
+      DWJZ?: string;
+      JZZZL?: string;
+    }>;
+  };
+};
+
+type EodhdFundSearchItem = {
+  Code?: string;
+  Exchange?: string;
+  Currency?: string;
+};
+
+type EodhdFundEodItem = {
+  close?: number;
+};
+
+async function fetchInternationalFundPriceFromEodhd(
+  symbol: string
+): Promise<{ price: number; changePercent: number; currency: string } | null> {
+  if (!ENV.eodhdApiKey || !symbol.includes(".")) {
+    return null;
+  }
+
+  try {
+    const [code, exchange] = symbol.split(".");
+    if (!code || !exchange) {
+      return null;
+    }
+
+    const metaUrl = new URL(
+      `https://eodhd.com/api/search/${encodeURIComponent(code)}`
+    );
+    metaUrl.searchParams.set("api_token", ENV.eodhdApiKey);
+    metaUrl.searchParams.set("fmt", "json");
+    metaUrl.searchParams.set("type", "fund");
+    metaUrl.searchParams.set("limit", "10");
+
+    const metaRes = await fetch(metaUrl);
+    if (!metaRes.ok) {
+      return null;
+    }
+
+    const meta = ((await metaRes.json()) as EodhdFundSearchItem[]).find(
+      item =>
+        item.Code?.trim().toUpperCase() === code.toUpperCase() &&
+        item.Exchange?.trim().toUpperCase() === exchange.toUpperCase()
+    );
+
+    const eodUrl = new URL(
+      `https://eodhd.com/api/eod/${encodeURIComponent(symbol)}`
+    );
+    eodUrl.searchParams.set("api_token", ENV.eodhdApiKey);
+    eodUrl.searchParams.set("fmt", "json");
+    eodUrl.searchParams.set(
+      "from",
+      new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10)
+    );
+    eodUrl.searchParams.set("to", new Date().toISOString().slice(0, 10));
+
+    const eodRes = await fetch(eodUrl);
+    if (!eodRes.ok) {
+      return null;
+    }
+
+    const eod = (await eodRes.json()) as EodhdFundEodItem[];
+    const latest = eod.at(-1);
+    const previous = eod.length > 1 ? eod.at(-2) : undefined;
+    const price = latest?.close;
+
+    if (price == null || !Number.isFinite(price) || price <= 0) {
+      return null;
+    }
+
+    const changePercent =
+      previous?.close && previous.close > 0
+        ? ((price - previous.close) / previous.close) * 100
+        : 0;
+
+    return {
+      price,
+      changePercent,
+      currency: meta?.Currency?.trim() || "USD",
+    };
+  } catch (err) {
+    console.warn("[EODHD Fund Price]", symbol, (err as Error).message);
+    return null;
+  }
+}
+
+function getCnFundQuoteSecids(code: string) {
+  if (!/^\d{6}$/.test(code)) {
+    return [] as string[];
+  }
+
+  if (/^[56]/.test(code)) {
+    return [`1.${code}`, `0.${code}`];
+  }
+
+  return [`0.${code}`, `1.${code}`];
+}
+
+async function fetchFundPriceFromEastMoneyEtfQuote(
+  code: string
+): Promise<{ priceCNY: number; changePercent: number } | null> {
+  const secids = getCnFundQuoteSecids(code);
+
+  for (const secid of secids) {
+    try {
+      const url = new URL("https://push2.eastmoney.com/api/qt/stock/get");
+      url.searchParams.set("secid", secid);
+      url.searchParams.set("fields", "f43,f170");
+
+      const res = await fetch(url, {
+        headers: {
+          Accept: "application/json,text/plain,*/*",
+          Referer: "https://quote.eastmoney.com/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+      });
+
+      if (!res.ok) {
+        continue;
+      }
+
+      const data = (await res.json()) as EastMoneyEtfQuoteResponse;
+      const rawPrice = data.data?.f43;
+      const rawChangePercent = data.data?.f170;
+
+      if (rawPrice == null || !Number.isFinite(rawPrice) || rawPrice <= 0) {
+        continue;
+      }
+
+      const priceCNY = rawPrice / 1000;
+      const changePercent =
+        rawChangePercent != null && Number.isFinite(rawChangePercent)
+          ? rawChangePercent / 100
+          : 0;
+
+      console.log(
+        `[EastMoney ETF Quote] ${code} via ${secid}: ¥${priceCNY.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+      );
+
+      return { priceCNY, changePercent };
+    } catch (err) {
+      console.warn(
+        `[EastMoney ETF Quote] ${code} via ${secid}:`,
+        (err as Error).message
+      );
+    }
+  }
+
+  return null;
+}
+
+async function fetchFundLatestNavFromEastMoney(
+  code: string
+): Promise<{ priceCNY: number; changePercent: number } | null> {
+  try {
+    const url = new URL("http://api.fund.eastmoney.com/f10/lsjz");
+    url.searchParams.set("fundCode", code);
+    url.searchParams.set("pageIndex", "1");
+    url.searchParams.set("pageSize", "1");
+
+    const res = await fetch(url, {
+      headers: {
+        Referer: "http://fundf10.eastmoney.com/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data = (await res.json()) as EastMoneyLatestNavResponse;
+    const latest = data.Data?.LSJZList?.[0];
+    const priceCNY = latest?.DWJZ ? parseFloat(latest.DWJZ) : NaN;
+
+    if (priceCNY == null || !Number.isFinite(priceCNY) || priceCNY <= 0) {
+      return null;
+    }
+
+    const parsedChange = latest?.JZZZL ? parseFloat(latest.JZZZL) : NaN;
+    const changePercent = Number.isFinite(parsedChange) ? parsedChange : 0;
+
+    console.log(
+      `[EastMoney Fund NAV] ${code}: ¥${priceCNY.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+    );
+
+    return { priceCNY, changePercent };
+  } catch (err) {
+    console.warn(`[EastMoney Fund NAV] ${code}:`, (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Fetch a single asset price (for currency, crypto, stock, fund)
  * Returns price in USD and CNY
  */
 export async function fetchAssetPrice(
@@ -449,7 +742,52 @@ export async function fetchAssetPrice(
   type: string
 ): Promise<{ priceUSD: number; priceCNY: number; change24h: number }> {
   try {
-    if (type === "crypto") {
+    if (type === "fund") {
+      const internationalFundData =
+        await fetchInternationalFundPriceFromEodhd(symbol);
+      if (internationalFundData) {
+        const exchangeRates = await fetchExchangeRates();
+        const cur = internationalFundData.currency || "USD";
+        const usdToCny = exchangeRates.USD || 7.2;
+        const cnyPerUnit =
+          cur === "USD"
+            ? usdToCny
+            : cur === "CNY"
+              ? 1
+              : (exchangeRates[cur] as number | undefined);
+        const priceUSD =
+          cur === "USD"
+            ? internationalFundData.price
+            : cur === "CNY"
+              ? internationalFundData.price / usdToCny
+              : cnyPerUnit
+                ? (internationalFundData.price * cnyPerUnit) / usdToCny
+                : internationalFundData.price;
+        const priceCNY = priceUSD * usdToCny;
+
+        return {
+          priceUSD,
+          priceCNY,
+          change24h: internationalFundData.changePercent,
+        };
+      }
+
+      const fundData =
+        (await fetchFundPriceFromEastMoney(symbol)) ??
+        (await fetchFundPriceFromEastMoneyEtfQuote(symbol)) ??
+        (await fetchFundLatestNavFromEastMoney(symbol));
+      if (fundData) {
+        const exchangeRates = await fetchExchangeRates();
+        const usdPerCny = exchangeRates.USD || 7.2; // 1 USD = 7.2 CNY
+        const priceCNY = fundData.priceCNY;
+        const priceUSD = priceCNY / usdPerCny;
+        return {
+          priceUSD,
+          priceCNY,
+          change24h: fundData.changePercent,
+        };
+      }
+    } else if (type === "crypto") {
       const prices = await fetchCryptoPrices([symbol]);
       if (prices[symbol]) {
         const exchangeRates = await fetchExchangeRates();
@@ -466,16 +804,20 @@ export async function fetchAssetPrice(
       }
     } else if (type === "currency") {
       const exchangeRates = await fetchExchangeRates();
-      if (symbol === "USD") {
+      const usdToCny = exchangeRates.USD || 7.2;
+      // All rates are "CNY per 1 unit of currency"
+      const cnyPerUnit =
+        symbol === "USD"
+          ? usdToCny
+          : symbol === "CNY"
+            ? 1
+            : (exchangeRates[symbol] as number | undefined);
+      if (cnyPerUnit != null && cnyPerUnit > 0) {
+        const priceCNY = symbol === "CNY" ? 1 : cnyPerUnit;
+        const priceUSD = symbol === "USD" ? 1 : priceCNY / usdToCny;
         return {
-          priceUSD: 1,
-          priceCNY: exchangeRates.USD || 7.2,
-          change24h: 0,
-        };
-      } else if (symbol === "HKD") {
-        return {
-          priceUSD: 1 / (exchangeRates.HKD || 0.92),
-          priceCNY: exchangeRates.HKD || 0.92,
+          priceUSD,
+          priceCNY,
           change24h: 0,
         };
       }

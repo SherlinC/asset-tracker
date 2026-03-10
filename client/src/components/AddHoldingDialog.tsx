@@ -1,5 +1,5 @@
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLanguage } from "@/hooks/useLanguage";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -51,47 +53,169 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assets: Asset[];
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 type AssetCategory =
   | "stock"
   | "crypto"
   | "precious_metals"
-  | "fund_etf"
+  | "fund"
   | "currency";
-type BackendAssetType = "currency" | "crypto" | "stock";
+
+type StockSubCategory = "us_stock" | "cn_stock" | "hk_stock";
+type FundSubCategory = "china_fund" | "international_fund";
+
+type BackendAssetType = "currency" | "crypto" | "stock" | "fund";
+
+type AssetOption = {
+  symbol: string;
+  displaySymbol?: string;
+  type: BackendAssetType;
+  name: string;
+  issuer?: string;
+  market?: string;
+  currency?: string;
+  keywords?: string[];
+};
 
 const CATEGORY_LABELS: Record<AssetCategory, string> = {
   stock: "Stock",
   crypto: "Crypto",
   precious_metals: "Precious metals",
-  fund_etf: "Fund ETF",
+  fund: "Fund",
   currency: "Currency",
 };
 
-const ASSETS_BY_CATEGORY: Record<
-  AssetCategory,
-  { symbol: string; type: BackendAssetType; name: string }[]
-> = {
-  stock: [
+const CATEGORY_LABELS_ZH: Record<AssetCategory, string> = {
+  stock: "股票",
+  crypto: "虚拟货币",
+  precious_metals: "贵金属",
+  fund: "基金",
+  currency: "货币",
+};
+
+const CATEGORY_ORDER: AssetCategory[] = [
+  "stock",
+  "crypto",
+  "precious_metals",
+  "fund",
+  "currency",
+];
+
+const STOCK_SUBCATEGORY_LABELS: Record<StockSubCategory, string> = {
+  us_stock: "美股",
+  cn_stock: "A股",
+  hk_stock: "港股",
+};
+
+const FUND_SUBCATEGORY_LABELS: Record<FundSubCategory, string> = {
+  china_fund: "中国基金",
+  international_fund: "国际基金",
+};
+
+const STOCK_ASSETS_BY_SUBCATEGORY: Record<StockSubCategory, AssetOption[]> = {
+  us_stock: [
     { symbol: "AAPL", type: "stock", name: "Apple Inc." },
     { symbol: "AMD", type: "stock", name: "Advanced Micro Devices Inc." },
+    { symbol: "AMZN", type: "stock", name: "Amazon.com Inc." },
     { symbol: "BABA", type: "stock", name: "Alibaba Group Holding Limited" },
     { symbol: "COIN", type: "stock", name: "Coinbase Global Inc." },
     { symbol: "DBB", type: "stock", name: "Invesco DB Base Metals Fund" },
-    { symbol: "FIG", type: "stock", name: "FIG" },
     { symbol: "GOOGL", type: "stock", name: "Alphabet Inc." },
-    { symbol: "AMZN", type: "stock", name: "Amazon.com Inc." },
+    { symbol: "IVV", type: "stock", name: "iShares Core S&P 500 ETF" },
     { symbol: "JPM", type: "stock", name: "JPMorgan Chase & Co." },
     { symbol: "META", type: "stock", name: "Meta Platforms Inc." },
     { symbol: "MSFT", type: "stock", name: "Microsoft Corporation" },
     { symbol: "NFLX", type: "stock", name: "Netflix Inc." },
     { symbol: "NVDA", type: "stock", name: "NVIDIA Corporation" },
     { symbol: "QQQ", type: "stock", name: "Invesco QQQ Trust" },
+    { symbol: "SPY", type: "stock", name: "SPDR S&P 500 ETF Trust" },
     { symbol: "TSLA", type: "stock", name: "Tesla Inc." },
-    { symbol: "USO", type: "stock", name: "United States Oil Fund LP" },
+    { symbol: "USO", type: "stock", name: "United States Oil Fund" },
+    { symbol: "VOO", type: "stock", name: "Vanguard S&P 500 ETF" },
+    { symbol: "VTI", type: "stock", name: "Vanguard Total Stock Market ETF" },
   ],
+  cn_stock: [
+    {
+      symbol: "000001.SZ",
+      type: "stock",
+      name: "Ping An Bank",
+      keywords: ["平安银行", "平安", "银行", "000001"],
+    },
+    {
+      symbol: "000858.SZ",
+      type: "stock",
+      name: "Wuliangye Yibin",
+      keywords: ["五粮液", "白酒", "000858"],
+    },
+    {
+      symbol: "002594.SZ",
+      type: "stock",
+      name: "BYD Co., Ltd.",
+      keywords: ["比亚迪", "新能源车", "002594"],
+    },
+    {
+      symbol: "300750.SZ",
+      type: "stock",
+      name: "CATL",
+      keywords: ["宁德时代", "电池", "300750"],
+    },
+    {
+      symbol: "600519.SS",
+      type: "stock",
+      name: "Kweichow Moutai",
+      keywords: ["贵州茅台", "茅台", "白酒", "600519"],
+    },
+    {
+      symbol: "601318.SS",
+      type: "stock",
+      name: "Ping An Insurance",
+      keywords: ["中国平安", "平安", "保险", "601318"],
+    },
+  ],
+  hk_stock: [
+    {
+      symbol: "0005.HK",
+      type: "stock",
+      name: "HSBC Holdings",
+      keywords: ["汇丰", "汇丰控股", "0005"],
+    },
+    {
+      symbol: "0700.HK",
+      type: "stock",
+      name: "Tencent Holdings",
+      keywords: ["腾讯", "腾讯控股", "0700"],
+    },
+    {
+      symbol: "1299.HK",
+      type: "stock",
+      name: "AIA Group",
+      keywords: ["友邦保险", "友邦", "1299"],
+    },
+    {
+      symbol: "1810.HK",
+      type: "stock",
+      name: "Xiaomi Corporation",
+      keywords: ["小米", "小米集团", "1810"],
+    },
+    {
+      symbol: "3690.HK",
+      type: "stock",
+      name: "Meituan",
+      keywords: ["美团", "3690"],
+    },
+    {
+      symbol: "9988.HK",
+      type: "stock",
+      name: "Alibaba Group (HK)",
+      keywords: ["阿里巴巴", "阿里", "9988"],
+    },
+  ],
+};
+
+const ASSETS_BY_CATEGORY: Record<AssetCategory, AssetOption[]> = {
+  stock: [],
   crypto: [
     { symbol: "BTC", type: "crypto", name: "Bitcoin" },
     { symbol: "ETH", type: "crypto", name: "Ethereum" },
@@ -101,18 +225,21 @@ const ASSETS_BY_CATEGORY: Record<
     { symbol: "GLD", type: "stock", name: "SPDR Gold Shares" },
     { symbol: "SLV", type: "stock", name: "iShares Silver Trust" },
   ],
-  fund_etf: [
-    { symbol: "SPY", type: "stock", name: "SPDR S&P 500 ETF" },
-    { symbol: "QQQ", type: "stock", name: "Invesco QQQ Trust" },
-    { symbol: "VOO", type: "stock", name: "Vanguard S&P 500 ETF" },
-  ],
+  fund: [],
   currency: [
     { symbol: "USD", type: "currency", name: "US Dollar" },
+    { symbol: "CNY", type: "currency", name: "人民币" },
+    { symbol: "EUR", type: "currency", name: "欧元" },
     { symbol: "HKD", type: "currency", name: "Hong Kong Dollar" },
   ],
 };
 
-const ALL_DEFAULT_ASSETS = Object.values(ASSETS_BY_CATEGORY).flat();
+const ALL_DEFAULT_ASSETS = [
+  ...Object.values(STOCK_ASSETS_BY_SUBCATEGORY).flat(),
+  ...ASSETS_BY_CATEGORY.crypto,
+  ...ASSETS_BY_CATEGORY.precious_metals,
+  ...ASSETS_BY_CATEGORY.currency,
+];
 
 export default function AddHoldingDialog({
   open,
@@ -120,37 +247,152 @@ export default function AddHoldingDialog({
   assets,
   onSuccess,
 }: Props) {
-  const [selectedCategory, setSelectedCategory] = useState<AssetCategory | "">(
-    ""
-  );
+  const { language } = useLanguage();
+  const isZh = language === "zh";
+  const utils = trpc.useUtils();
+  const [selectedCategory, setSelectedCategory] =
+    useState<AssetCategory>("stock");
+  const [selectedStockSubCategory, setSelectedStockSubCategory] =
+    useState<StockSubCategory>("us_stock");
+  const [selectedFundSubCategory, setSelectedFundSubCategory] =
+    useState<FundSubCategory>("china_fund");
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string>("");
   const [assetComboboxOpen, setAssetComboboxOpen] = useState(false);
   const [quantity, setQuantity] = useState<string>("");
   const [costBasis, setCostBasis] = useState<string>("");
   const [currencyDisplay, setCurrencyDisplay] = useState<"USD" | "CNY">("USD");
+  const [fundSearchInput, setFundSearchInput] = useState("");
+  const [fundSearchQuery, setFundSearchQuery] = useState("");
+  const [usEtfSearchInput, setUsEtfSearchInput] = useState("");
+  const [usEtfSearchQuery, setUsEtfSearchQuery] = useState("");
+  const [internationalFundSearchInput, setInternationalFundSearchInput] =
+    useState("");
+  const [internationalFundSearchQuery, setInternationalFundSearchQuery] =
+    useState("");
+  const [stockSearchInput, setStockSearchInput] = useState("");
+  const [stockSearchQuery, setStockSearchQuery] = useState("");
   const createAsset = trpc.assets.create.useMutation();
+  const fundSearch = trpc.fund.search.useQuery(
+    { q: fundSearchQuery, limit: 50 },
+    {
+      enabled:
+        selectedCategory === "fund" && selectedFundSubCategory === "china_fund",
+      staleTime: 60 * 1000,
+    }
+  );
+  const usEtfSearch = trpc.fund.usEtfSearch.useQuery(
+    { q: usEtfSearchQuery, limit: 50 },
+    {
+      enabled:
+        selectedCategory === "fund" &&
+        selectedFundSubCategory === "international_fund" &&
+        usEtfSearchQuery.trim().length > 0,
+      staleTime: 60 * 1000,
+    }
+  );
+  const internationalFundSearch = trpc.fund.internationalSearch.useQuery(
+    { q: internationalFundSearchQuery, limit: 20 },
+    {
+      enabled:
+        selectedCategory === "fund" &&
+        selectedFundSubCategory === "international_fund" &&
+        internationalFundSearchQuery.trim().length > 0,
+      staleTime: 60 * 1000,
+    }
+  );
+  const stockSearch = trpc.stock.search.useQuery(
+    { q: stockSearchQuery, limit: 50 },
+    {
+      enabled:
+        selectedCategory === "stock" &&
+        selectedStockSubCategory === "cn_stock" &&
+        stockSearchQuery.trim().length > 0,
+      staleTime: 60 * 1000,
+    }
+  );
+
+  useEffect(() => {
+    if (
+      selectedCategory !== "fund" ||
+      selectedFundSubCategory !== "china_fund"
+    ) {
+      return;
+    }
+    const t = setTimeout(() => setFundSearchQuery(fundSearchInput), 400);
+    return () => clearTimeout(t);
+  }, [selectedCategory, selectedFundSubCategory, fundSearchInput]);
+
+  useEffect(() => {
+    if (
+      selectedCategory !== "stock" ||
+      selectedStockSubCategory !== "cn_stock"
+    ) {
+      return;
+    }
+
+    const t = setTimeout(() => setStockSearchQuery(stockSearchInput), 400);
+    return () => clearTimeout(t);
+  }, [selectedCategory, selectedStockSubCategory, stockSearchInput]);
+
+  useEffect(() => {
+    if (
+      selectedCategory !== "fund" ||
+      selectedFundSubCategory !== "international_fund"
+    ) {
+      return;
+    }
+
+    const t = setTimeout(() => setUsEtfSearchQuery(usEtfSearchInput), 400);
+    return () => clearTimeout(t);
+  }, [selectedCategory, selectedFundSubCategory, usEtfSearchInput]);
+
+  useEffect(() => {
+    if (
+      selectedCategory !== "fund" ||
+      selectedFundSubCategory !== "international_fund"
+    ) {
+      return;
+    }
+
+    const t = setTimeout(
+      () => setInternationalFundSearchQuery(internationalFundSearchInput),
+      400
+    );
+    return () => clearTimeout(t);
+  }, [selectedCategory, selectedFundSubCategory, internationalFundSearchInput]);
+
   const addHolding = trpc.holdings.add.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      await Promise.all([
+        utils.holdings.list.invalidate(),
+        utils.portfolio.summary.invalidate(),
+        utils.portfolioHistory.get.invalidate(),
+        utils.assets.list.invalidate(),
+      ]);
+      await onSuccess();
       toast.success("Holding added successfully");
       resetForm();
       onOpenChange(false);
-      onSuccess();
     },
     onError: error => {
       toast.error(`Failed to add holding: ${error.message}`);
     },
   });
 
-  const selectedAssetType = selectedAssetSymbol
-    ? (ALL_DEFAULT_ASSETS.find(a => a.symbol === selectedAssetSymbol)?.type ??
-      "stock")
-    : "stock";
-
   const fetchPrice = trpc.prices.fetchSingle.useQuery(
     selectedAssetSymbol && selectedAssetSymbol !== ""
       ? {
           symbol: selectedAssetSymbol,
-          type: selectedAssetType,
+          type:
+            selectedCategory === "fund" &&
+            (selectedFundSubCategory === "china_fund" ||
+              selectedFundSubCategory === "international_fund")
+              ? "fund"
+              : selectedCategory === "currency"
+                ? "currency"
+                : selectedCategory === "crypto"
+                  ? "crypto"
+                  : "stock",
         }
       : { symbol: "", type: "stock" },
     {
@@ -162,18 +404,46 @@ export default function AddHoldingDialog({
   const priceData = fetchPrice.data;
 
   const resetForm = () => {
-    setSelectedCategory("");
+    setSelectedCategory("stock");
     setSelectedAssetSymbol("");
     setAssetComboboxOpen(false);
     setQuantity("");
     setCostBasis("");
     setCurrencyDisplay("USD");
+    setSelectedStockSubCategory("us_stock");
+    setSelectedFundSubCategory("china_fund");
+    setFundSearchInput("");
+    setFundSearchQuery("");
+    setUsEtfSearchInput("");
+    setUsEtfSearchQuery("");
+    setInternationalFundSearchInput("");
+    setInternationalFundSearchQuery("");
+    setStockSearchInput("");
+    setStockSearchQuery("");
   };
 
   const handleCategoryChange = (value: string) => {
-    const cat = value as AssetCategory | "";
+    const cat = value as AssetCategory;
     setSelectedCategory(cat);
     setSelectedAssetSymbol("");
+    if (cat !== "fund") {
+      setFundSearchInput("");
+      setFundSearchQuery("");
+      setUsEtfSearchInput("");
+      setUsEtfSearchQuery("");
+      setInternationalFundSearchInput("");
+      setInternationalFundSearchQuery("");
+    }
+    if (cat !== "stock") {
+      setStockSearchInput("");
+      setStockSearchQuery("");
+    }
+    if (cat !== "stock") {
+      setSelectedStockSubCategory("us_stock");
+    }
+    if (cat !== "fund") {
+      setSelectedFundSubCategory("china_fund");
+    }
   };
 
   const handleAssetChange = (symbol: string) => {
@@ -181,11 +451,86 @@ export default function AddHoldingDialog({
     setAssetComboboxOpen(false);
   };
 
+  const stockListForCategory: AssetOption[] =
+    selectedCategory === "stock" && selectedStockSubCategory === "cn_stock"
+      ? (stockSearch.data ?? []).map(stock => ({
+          symbol: stock.symbol,
+          displaySymbol: stock.code,
+          type: "stock" as BackendAssetType,
+          name: stock.name,
+          market: stock.market,
+          keywords: [stock.code, stock.pinyin, stock.market],
+        }))
+      : [];
+  const usEtfListForCategory: AssetOption[] =
+    selectedCategory === "fund" &&
+    selectedFundSubCategory === "international_fund"
+      ? (usEtfSearch.data ?? []).map(etf => ({
+          symbol: etf.symbol,
+          type: "stock" as BackendAssetType,
+          name: etf.name,
+          issuer: etf.issuer,
+          market: etf.exchange,
+          keywords: [etf.issuer, etf.exchange, ...(etf.keywords ?? [])],
+        }))
+      : [];
+  const internationalFundListForCategory: AssetOption[] =
+    selectedCategory === "fund" &&
+    selectedFundSubCategory === "international_fund"
+      ? (internationalFundSearch.data ?? []).map(fund => ({
+          symbol: fund.symbol,
+          displaySymbol: fund.isin,
+          type: "fund" as BackendAssetType,
+          name: fund.name,
+          market: fund.market,
+          currency: fund.currency,
+          keywords: [fund.isin, fund.externalSymbol, fund.currency].filter(
+            Boolean
+          ) as string[],
+        }))
+      : [];
+  const internationalFundOptions: AssetOption[] =
+    selectedCategory === "fund" &&
+    selectedFundSubCategory === "international_fund"
+      ? Array.from(
+          new Map(
+            [...usEtfListForCategory, ...internationalFundListForCategory].map(
+              item => [item.symbol, item]
+            )
+          ).values()
+        )
+      : [];
+  const fundListForCategory: AssetOption[] =
+    selectedCategory === "fund" && selectedFundSubCategory === "china_fund"
+      ? (fundSearch.data ?? []).map(f => ({
+          symbol: f.symbol,
+          type: "fund" as BackendAssetType,
+          name: f.name,
+        }))
+      : [];
   const assetsInCategory = selectedCategory
-    ? (ASSETS_BY_CATEGORY[selectedCategory] ?? [])
+    ? selectedCategory === "stock"
+      ? selectedStockSubCategory === "cn_stock"
+        ? stockListForCategory
+        : STOCK_ASSETS_BY_SUBCATEGORY[selectedStockSubCategory]
+      : selectedCategory === "fund"
+        ? selectedFundSubCategory === "china_fund"
+          ? fundListForCategory
+          : internationalFundOptions
+        : (ASSETS_BY_CATEGORY[selectedCategory] ?? [])
     : [];
+  const selectedExistingAsset = selectedAssetSymbol
+    ? assets.find(a => a.symbol === selectedAssetSymbol)
+    : undefined;
   const selectedAsset = selectedAssetSymbol
     ? (assetsInCategory.find(a => a.symbol === selectedAssetSymbol) ??
+      (selectedExistingAsset
+        ? {
+            symbol: selectedExistingAsset.symbol,
+            type: selectedExistingAsset.type as BackendAssetType,
+            name: selectedExistingAsset.name,
+          }
+        : undefined) ??
       ALL_DEFAULT_ASSETS.find(a => a.symbol === selectedAssetSymbol))
     : null;
 
@@ -202,19 +547,20 @@ export default function AddHoldingDialog({
       let asset = assets.find(a => a.symbol === selectedAssetSymbol);
 
       if (!asset) {
-        const defaultAsset = ALL_DEFAULT_ASSETS.find(
-          a => a.symbol === selectedAssetSymbol
-        );
-        if (!defaultAsset) {
+        const assetToCreate =
+          selectedAsset ??
+          ALL_DEFAULT_ASSETS.find(a => a.symbol === selectedAssetSymbol);
+
+        if (!assetToCreate) {
           toast.error("Invalid asset selected");
           return;
         }
 
         const createdAsset = await createAsset.mutateAsync({
-          symbol: defaultAsset.symbol,
-          type: defaultAsset.type,
-          name: defaultAsset.name,
-          baseCurrency: "CNY",
+          symbol: assetToCreate.symbol,
+          type: assetToCreate.type,
+          name: assetToCreate.name,
+          baseCurrency: assetToCreate.currency ?? "CNY",
         });
         asset = createdAsset;
       }
@@ -234,6 +580,7 @@ export default function AddHoldingDialog({
     currencyDisplay === "USD" ? priceData?.priceUSD : priceData?.priceCNY;
   const totalValue =
     currentPrice && quantity ? parseFloat(quantity) * currentPrice : 0;
+  const isSubmitting = addHolding.isPending || createAsset.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -248,22 +595,83 @@ export default function AddHoldingDialog({
         <form onSubmit={handleSubmit} className="min-w-0 w-full space-y-4">
           <div className="space-y-2 min-w-0">
             <Label>Asset type</Label>
-            <Select
-              value={selectedCategory || undefined}
+            <Tabs
+              value={selectedCategory}
               onValueChange={handleCategoryChange}
+              className="w-full"
             >
-              <SelectTrigger id="category" className="w-full">
-                <SelectValue placeholder="Select type (Stock / Crypto / Precious metals / Fund ETF / Currency)" />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(CATEGORY_LABELS) as AssetCategory[]).map(cat => (
-                  <SelectItem key={cat} value={cat}>
-                    {CATEGORY_LABELS[cat]}
-                  </SelectItem>
+              <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
+                {CATEGORY_ORDER.map(cat => (
+                  <TabsTrigger
+                    key={cat}
+                    value={cat}
+                    className="data-[state=active]:bg-background flex-1 min-w-0"
+                  >
+                    {isZh ? CATEGORY_LABELS_ZH[cat] : CATEGORY_LABELS[cat]}
+                  </TabsTrigger>
                 ))}
-              </SelectContent>
-            </Select>
+              </TabsList>
+            </Tabs>
           </div>
+
+          {selectedCategory === "stock" && (
+            <div className="space-y-2 min-w-0">
+              <Label>Stock market</Label>
+              <Select
+                value={selectedStockSubCategory}
+                onValueChange={value => {
+                  setSelectedStockSubCategory(value as StockSubCategory);
+                  setSelectedAssetSymbol("");
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    Object.keys(STOCK_SUBCATEGORY_LABELS) as StockSubCategory[]
+                  ).map(sub => (
+                    <SelectItem key={sub} value={sub}>
+                      {STOCK_SUBCATEGORY_LABELS[sub]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {selectedCategory === "fund" && (
+            <div className="space-y-2 min-w-0">
+              <Label>Fund type</Label>
+              <Select
+                value={selectedFundSubCategory}
+                onValueChange={value => {
+                  setSelectedFundSubCategory(value as FundSubCategory);
+                  setSelectedAssetSymbol("");
+                  setFundSearchInput("");
+                  setFundSearchQuery("");
+                  setUsEtfSearchInput("");
+                  setUsEtfSearchQuery("");
+                  setInternationalFundSearchInput("");
+                  setInternationalFundSearchQuery("");
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    Object.keys(FUND_SUBCATEGORY_LABELS) as FundSubCategory[]
+                  ).map(sub => (
+                    <SelectItem key={sub} value={sub}>
+                      {FUND_SUBCATEGORY_LABELS[sub]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2 min-w-0">
             <Label htmlFor="asset">Asset</Label>
             <Popover
@@ -286,7 +694,7 @@ export default function AddHoldingDialog({
                   {selectedAsset ? (
                     <span className="min-w-0 truncate">
                       <span className="font-medium">
-                        {selectedAsset.symbol}
+                        {selectedAsset.displaySymbol ?? selectedAsset.symbol}
                       </span>
                       <span className="text-muted-foreground ml-2">
                         {selectedAsset.name}
@@ -306,32 +714,129 @@ export default function AddHoldingDialog({
                 className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0"
                 align="start"
               >
-                <Command shouldFilter={true}>
-                  <CommandInput placeholder="Type symbol or name..." />
+                <Command
+                  shouldFilter={
+                    !(
+                      (selectedCategory === "fund" &&
+                        (selectedFundSubCategory === "china_fund" ||
+                          selectedFundSubCategory === "international_fund")) ||
+                      (selectedCategory === "stock" &&
+                        selectedStockSubCategory === "cn_stock")
+                    )
+                  }
+                >
+                  {(selectedCategory === "fund" &&
+                    (selectedFundSubCategory === "china_fund" ||
+                      selectedFundSubCategory === "international_fund")) ||
+                  (selectedCategory === "stock" &&
+                    selectedStockSubCategory === "cn_stock") ? (
+                    <div className="flex items-center border-b px-2">
+                      <Input
+                        value={
+                          selectedCategory === "fund"
+                            ? selectedFundSubCategory === "china_fund"
+                              ? fundSearchInput
+                              : internationalFundSearchInput
+                            : stockSearchInput
+                        }
+                        onChange={e => {
+                          const nextValue = e.target.value;
+
+                          if (selectedCategory === "fund") {
+                            if (selectedFundSubCategory === "china_fund") {
+                              setFundSearchInput(nextValue);
+                            } else {
+                              setInternationalFundSearchInput(nextValue);
+                            }
+                          } else {
+                            setStockSearchInput(nextValue);
+                          }
+                        }}
+                        placeholder={
+                          selectedCategory === "fund"
+                            ? selectedFundSubCategory === "china_fund"
+                              ? "输入基金代码或名称搜索..."
+                              : "输入国际基金名称、ETF 代码或 ISIN 搜索..."
+                            : "输入股票代码、名称或拼音搜索..."
+                        }
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </div>
+                  ) : (
+                    <CommandInput placeholder="Type symbol or name..." />
+                  )}
                   <CommandList>
-                    <CommandEmpty>No asset found.</CommandEmpty>
-                    <CommandGroup>
-                      {assetsInCategory.map(asset => (
-                        <CommandItem
-                          key={asset.symbol}
-                          value={`${asset.symbol} ${asset.name}`}
-                          onSelect={() => handleAssetChange(asset.symbol)}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedAssetSymbol === asset.symbol
-                                ? "opacity-100"
-                                : "opacity-0"
-                            )}
-                          />
-                          <span className="font-medium">{asset.symbol}</span>
-                          <span className="text-muted-foreground ml-2">
-                            {asset.name}
-                          </span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
+                    {(selectedCategory === "fund" &&
+                      ((selectedFundSubCategory === "china_fund" &&
+                        fundSearch.isLoading) ||
+                        (selectedFundSubCategory === "international_fund" &&
+                          (internationalFundSearch.isLoading ||
+                            usEtfSearch.isLoading)))) ||
+                    (selectedCategory === "stock" &&
+                      selectedStockSubCategory === "cn_stock" &&
+                      stockSearch.isLoading) ? (
+                      <div className="flex items-center justify-center py-4 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {selectedCategory === "fund"
+                          ? selectedFundSubCategory === "china_fund"
+                            ? "加载基金列表..."
+                            : "搜索国际基金中..."
+                          : "搜索A股中..."}
+                      </div>
+                    ) : (
+                      <>
+                        <CommandEmpty>
+                          {selectedCategory === "fund" &&
+                          selectedFundSubCategory === "china_fund"
+                            ? "未找到基金，请换关键词"
+                            : selectedCategory === "fund" &&
+                                selectedFundSubCategory === "international_fund"
+                              ? internationalFundSearchQuery.trim()
+                                ? "未找到国际基金，请换名称、ETF 代码或 ISIN"
+                                : "请输入国际基金名称、ETF 代码或 ISIN 搜索"
+                              : selectedCategory === "stock" &&
+                                  selectedStockSubCategory === "cn_stock"
+                                ? stockSearchQuery.trim()
+                                  ? "未找到A股，请换代码、名称或拼音"
+                                  : "请输入股票代码、名称或拼音搜索A股"
+                                : "No asset found."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {assetsInCategory.map(asset => (
+                            <CommandItem
+                              key={asset.symbol}
+                              value={`${asset.symbol} ${asset.name} ${(asset.keywords ?? []).join(" ")}`}
+                              onSelect={() => handleAssetChange(asset.symbol)}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedAssetSymbol === asset.symbol
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              <span className="font-medium">
+                                {asset.displaySymbol ?? asset.symbol}
+                              </span>
+                              <span className="text-muted-foreground ml-2">
+                                {asset.name}
+                              </span>
+                              {asset.issuer ? (
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                  {asset.issuer}
+                                </span>
+                              ) : null}
+                              {asset.market ? (
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                  {asset.market}
+                                </span>
+                              ) : null}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </>
+                    )}
                   </CommandList>
                 </Command>
               </PopoverContent>
@@ -447,13 +952,16 @@ export default function AddHoldingDialog({
             </Button>
             <Button
               type="submit"
-              disabled={
-                addHolding.isPending ||
-                createAsset.isPending ||
-                fetchPrice.isLoading
-              }
+              disabled={isSubmitting || fetchPrice.isLoading}
             >
-              {addHolding.isPending ? "Adding..." : "Add Holding"}
+              {isSubmitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Adding...
+                </span>
+              ) : (
+                "Add Holding"
+              )}
             </Button>
           </div>
         </form>

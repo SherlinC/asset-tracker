@@ -1,8 +1,18 @@
 import { Trash2, Edit2, TrendingUp, TrendingDown } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -30,7 +40,33 @@ interface Props {
   onRefresh: () => void;
 }
 
+type EditState = {
+  holdingId: number;
+  quantity: string;
+  symbol: string;
+  name: string;
+};
+
 export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
+  const [editHolding, setEditHolding] = useState<EditState | null>(null);
+  const utils = trpc.useUtils();
+
+  const updateHolding = trpc.holdings.update.useMutation({
+    onSuccess: async () => {
+      toast.success("已更新持仓");
+      setEditHolding(null);
+      await Promise.all([
+        utils.holdings.list.invalidate(),
+        utils.portfolio.summary.invalidate(),
+        utils.portfolioHistory.get.invalidate(),
+      ]);
+      onRefresh();
+    },
+    onError: error => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
   const deleteHolding = trpc.holdings.delete.useMutation({
     onSuccess: () => {
       toast.success("Holding deleted successfully");
@@ -68,6 +104,8 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
         return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100";
       case "stock":
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
+      case "fund":
+        return "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-100";
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100";
     }
@@ -77,6 +115,15 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
     if (change > 0) return "text-green-600 dark:text-green-400";
     if (change < 0) return "text-red-600 dark:text-red-400";
     return "text-gray-600 dark:text-gray-400";
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editHolding || !editHolding.quantity.trim()) return;
+    updateHolding.mutate({
+      holdingId: editHolding.holdingId,
+      quantity: editHolding.quantity.trim(),
+    });
   };
 
   if (holdings.length === 0) {
@@ -98,6 +145,7 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Your Holdings</CardTitle>
@@ -160,8 +208,14 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          toast.info("Edit feature coming soon");
+                          setEditHolding({
+                            holdingId: holding.holdingId,
+                            quantity: String(holding.quantity),
+                            symbol: holding.symbol,
+                            name: holding.name,
+                          });
                         }}
+                        title="编辑持仓"
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
@@ -184,5 +238,54 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
         </div>
       </CardContent>
     </Card>
+
+    <Dialog
+      open={!!editHolding}
+      onOpenChange={open => !open && setEditHolding(null)}
+    >
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>编辑持仓</DialogTitle>
+          <DialogDescription>
+            {editHolding ? `${editHolding.symbol} ${editHolding.name}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {editHolding && (
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-qty">数量</Label>
+              <Input
+                id="edit-qty"
+                type="text"
+                inputMode="decimal"
+                value={editHolding.quantity}
+                onChange={e =>
+                  setEditHolding(prev =>
+                    prev ? { ...prev, quantity: e.target.value } : null
+                  )
+                }
+                placeholder="例如 10 或 0.5"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditHolding(null)}
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                disabled={!editHolding.quantity.trim() || updateHolding.isPending}
+              >
+                {updateHolding.isPending ? "保存中..." : "保存"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

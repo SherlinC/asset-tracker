@@ -33,8 +33,8 @@ export const assets = mysqlTable("assets", {
   userId: int("userId").notNull(),
   // Asset identifier: e.g., "USD", "HKD", "BTC", "ETH", "AAPL", "GOOGL"
   symbol: varchar("symbol", { length: 20 }).notNull(),
-  // Asset type: currency, crypto, stock
-  type: mysqlEnum("type", ["currency", "crypto", "stock"]).notNull(),
+  // Asset type: currency, crypto, stock, fund (中国基金/天天基金)
+  type: mysqlEnum("type", ["currency", "crypto", "stock", "fund"]).notNull(),
   // Display name: e.g., "US Dollar", "Bitcoin", "Apple Inc."
   name: varchar("name", { length: 100 }).notNull(),
   // Base currency for the asset (e.g., "CNY" for currencies, "USD" for crypto/stocks)

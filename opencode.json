@@ -7,7 +7,7 @@
         "anthropic": {
             "options": {
                 "baseURL": "https://api.aicodemirror.com/api/claudecode/v1",
-                "apiKey": "{env:sk-ant-api03-afqfGr3BFxo20k3zadACi1QydyfgRQJSqP4ujIdKZ8pgwaOmtFVHhKO1ptIovsamlwGgmmcmQqBmPInGMIpCIQ}"
+                "apiKey": "sk-ant-api03-afqfGr3BFxo20k3zadACi1QydyfgRQJSqP4ujIdKZ8pgwaOmtFVHhKO1ptIovsamlwGgmmcmQqBmPInGMIpCIQ"
             }
         },
         "openai": {

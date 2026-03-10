@@ -9,14 +9,41 @@ import HoldingsList from "@/components/HoldingsList";
 import PortfolioSummary from "@/components/PortfolioSummary";
 import PortfolioValueChart from "@/components/PortfolioValueChart";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/hooks/useLanguage";
 import { usePriceUpdates } from "@/hooks/usePriceUpdates";
 import { trpc } from "@/lib/trpc";
 
 export default function Dashboard() {
   const { loading: authLoading } = useAuth();
+  const { language } = useLanguage();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [scrollToCategory, setScrollToCategory] = useState<string | null>(null);
   const hasRecordedThisSession = useRef(false);
+  const text =
+    language === "zh"
+      ? {
+          refreshed: "价格刷新成功",
+          refreshFailed: "刷新价格失败：",
+          loading: "加载中...",
+          title: "资产组合",
+          subtitle: "实时追踪你的投资组合",
+          refresh: "刷新",
+          addAsset: "添加资产",
+          loadingPortfolio: "正在加载资产组合...",
+          loadingHoldings: "正在加载持仓...",
+        }
+      : {
+          refreshed: "Prices refreshed successfully",
+          refreshFailed: "Failed to refresh prices:",
+          loading: "Loading...",
+          title: "Asset Portfolio",
+          subtitle: "Track your investments in real time",
+          refresh: "Refresh",
+          addAsset: "Add Asset",
+          loadingPortfolio: "Loading portfolio...",
+          loadingHoldings: "Loading holdings...",
+        };
 
   const utils = trpc.useUtils();
   const portfolioSummary = trpc.portfolio.summary.useQuery(undefined, {
@@ -33,6 +60,15 @@ export default function Dashboard() {
   const { mutate: recordPortfolioMutate } = recordPortfolio;
   const { refetch: refetchPortfolioSummary } = portfolioSummary;
 
+  const refreshDashboardData = async () => {
+    await Promise.all([
+      assets.refetch(),
+      holdings.refetch(),
+      refetchPortfolioSummary(),
+      utils.portfolioHistory.get.invalidate(),
+    ]);
+  };
+
   usePriceUpdates(10 * 60 * 1000);
 
   // Record current portfolio value once when dashboard loads with holdings (so chart has linked data)
@@ -45,19 +81,13 @@ export default function Dashboard() {
   // Mutations
   const refreshPrices = trpc.prices.refresh.useMutation({
     onSuccess: () => {
-      toast.success("Prices refreshed successfully");
-      refetchPortfolioSummary();
-      holdings.refetch();
+      toast.success(text.refreshed);
+      void refreshDashboardData();
     },
     onError: error => {
-      toast.error(`Failed to refresh prices: ${error.message}`);
+      toast.error(`${text.refreshFailed} ${error.message}`);
     },
   });
-
-  // Refetch portfolio when holdings change
-  useEffect(() => {
-    refetchPortfolioSummary();
-  }, [holdings.data, refetchPortfolioSummary]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -71,7 +101,7 @@ export default function Dashboard() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        Loading...
+        {text.loading}
       </div>
     );
   }
@@ -82,12 +112,8 @@ export default function Dashboard() {
         {/* Header with refresh button */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Asset Portfolio
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Track your investments in real-time
-            </p>
+            <h1 className="text-3xl font-bold text-foreground">{text.title}</h1>
+            <p className="text-muted-foreground mt-1">{text.subtitle}</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -99,10 +125,10 @@ export default function Dashboard() {
               <RefreshCw
                 className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
               />
-              Refresh
+              {text.refresh}
             </Button>
             <Button onClick={() => setShowAddDialog(true)} size="sm">
-              Add Asset
+              {text.addAsset}
             </Button>
           </div>
         </div>
@@ -110,10 +136,20 @@ export default function Dashboard() {
         {/* Portfolio Summary */}
         {portfolioSummary.isLoading ? (
           <div className="bg-card rounded-lg p-8 text-center text-muted-foreground">
-            Loading portfolio...
+            {text.loadingPortfolio}
           </div>
         ) : (
-          <PortfolioSummary data={portfolioSummary.data} />
+          <PortfolioSummary
+            data={portfolioSummary.data}
+            onCategoryClick={type => {
+              setScrollToCategory(type);
+              setTimeout(() => {
+                document
+                  .getElementById("holdings-section")
+                  ?.scrollIntoView({ behavior: "smooth" });
+              }, 0);
+            }}
+          />
         )}
 
         {/* Portfolio Value Trend Chart */}
@@ -122,15 +158,16 @@ export default function Dashboard() {
         {/* Holdings List */}
         {holdings.isLoading ? (
           <div className="bg-card rounded-lg p-8 text-center text-muted-foreground">
-            Loading holdings...
+            {text.loadingHoldings}
           </div>
         ) : (
           <HoldingsList
             holdings={holdings.data || []}
             onRefresh={() => {
-              holdings.refetch();
-              void utils.portfolioHistory.get.invalidate();
+              void refreshDashboardData();
             }}
+            scrollToCategory={scrollToCategory}
+            onScrollToCategoryHandled={() => setScrollToCategory(null)}
           />
         )}
 
@@ -140,12 +177,7 @@ export default function Dashboard() {
           onOpenChange={setShowAddDialog}
           assets={assets.data || []}
           onSuccess={async () => {
-            setShowAddDialog(false);
-            await Promise.all([
-              holdings.refetch(),
-              refetchPortfolioSummary(),
-              utils.portfolioHistory.get.invalidate(),
-            ]);
+            await refreshDashboardData();
           }}
         />
       </div>

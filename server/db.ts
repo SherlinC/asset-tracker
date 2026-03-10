@@ -130,7 +130,7 @@ export async function getOrCreateDevUser(email: string): Promise<User | null> {
 export async function getOrCreateAsset(
   userId: number,
   symbol: string,
-  type: "currency" | "crypto" | "stock",
+  type: "currency" | "crypto" | "stock" | "fund",
   name: string,
   baseCurrency: string = "CNY"
 ) {
@@ -222,7 +222,7 @@ export async function updateHolding(
 
   const updateData: Record<string, unknown> = { quantity };
   if (costBasis !== undefined) {
-    updateData.costBasis = costBasis;
+    updateData.costBasis = costBasis === "" ? null : costBasis;
   }
 
   await db.update(holdings).set(updateData).where(eq(holdings.id, holdingId));

@@ -7,6 +7,10 @@ import { ENV } from "./_core/env";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import * as db from "./db";
+import { searchEastMoneyFunds } from "./eastMoneyFund";
+import { searchEastMoneyStocks } from "./eastMoneyStock";
+import { searchInternationalFunds } from "./eodhdFund";
+import { searchNasdaqEtfs } from "./nasdaqEtf";
 import * as priceService from "./priceService";
 
 type PortfolioAssetSummary = {
@@ -21,6 +25,50 @@ type PortfolioAssetSummary = {
   holding: Awaited<ReturnType<typeof db.getUserHoldings>>[number]["holding"];
 };
 
+async function priceUserHoldings(
+  holdings: Awaited<ReturnType<typeof db.getUserHoldings>>
+): Promise<PortfolioAssetSummary[]> {
+  return Promise.all(
+    holdings.map(async h => {
+      const symbol = h.asset.symbol;
+      const type = h.asset.type;
+      const quantity = parseFloat(h.holding.quantity);
+
+      try {
+        const priceData = await priceService.fetchAssetPrice(symbol, type);
+        const priceUSD = priceData.priceUSD;
+        const valueUSD = quantity * priceUSD;
+
+        return {
+          id: h.asset.id,
+          symbol: h.asset.symbol,
+          name: h.asset.name,
+          type: h.asset.type,
+          quantity,
+          priceUSD,
+          valueUSD,
+          change24h: priceData.change24h,
+          holding: h.holding,
+        } satisfies PortfolioAssetSummary;
+      } catch (error) {
+        console.error(`Error fetching price for ${symbol}:`, error);
+
+        return {
+          id: h.asset.id,
+          symbol: h.asset.symbol,
+          name: h.asset.name,
+          type: h.asset.type,
+          quantity,
+          priceUSD: 0,
+          valueUSD: 0,
+          change24h: 0,
+          holding: h.holding,
+        } satisfies PortfolioAssetSummary;
+      }
+    })
+  );
+}
+
 // Helper function to record portfolio value (uses same real-time API as portfolio.summary so chart matches summary)
 async function recordPortfolioValue(userId: number) {
   const summary = await db.getUserHoldings(userId);
@@ -30,24 +78,61 @@ async function recordPortfolioValue(userId: number) {
     return;
   }
 
-  let totalValueUSD = 0;
-  for (const h of summary) {
-    const symbol = h.asset.symbol;
-    const type = h.asset.type;
-    const quantity = parseFloat(h.holding.quantity);
-    try {
-      const priceData = await priceService.fetchAssetPrice(symbol, type);
-      totalValueUSD += quantity * priceData.priceUSD;
-    } catch {
-      // skip failed price fetch
-    }
-  }
+  const pricedHoldings = await priceUserHoldings(summary);
+  const totalValueUSD = pricedHoldings.reduce(
+    (sum, holding) => sum + holding.valueUSD,
+    0
+  );
 
   await db.recordPortfolioValue(userId, totalValueUSD.toString());
 }
 
 export const appRouter = router({
   system: systemRouter,
+  fund: router({
+    search: publicProcedure
+      .input(
+        z.object({
+          q: z.string().optional().default(""),
+          limit: z.number().min(1).max(100).optional().default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        return searchEastMoneyFunds(input.q, input.limit);
+      }),
+    usEtfSearch: protectedProcedure
+      .input(
+        z.object({
+          q: z.string().optional().default(""),
+          limit: z.number().min(1).max(100).optional().default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        return searchNasdaqEtfs(input.q, input.limit);
+      }),
+    internationalSearch: protectedProcedure
+      .input(
+        z.object({
+          q: z.string().optional().default(""),
+          limit: z.number().min(1).max(50).optional().default(20),
+        })
+      )
+      .query(async ({ input }) => {
+        return searchInternationalFunds(input.q, input.limit);
+      }),
+  }),
+  stock: router({
+    search: protectedProcedure
+      .input(
+        z.object({
+          q: z.string().optional().default(""),
+          limit: z.number().min(1).max(100).optional().default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        return searchEastMoneyStocks(input.q, input.limit);
+      }),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -84,7 +169,7 @@ export const appRouter = router({
       .input(
         z.object({
           symbol: z.string(),
-          type: z.enum(["currency", "crypto", "stock"]),
+          type: z.enum(["currency", "crypto", "stock", "fund"]),
           name: z.string(),
           baseCurrency: z.string().default("CNY"),
         })
@@ -192,7 +277,7 @@ export const appRouter = router({
       .input(
         z.object({
           symbol: z.string(),
-          type: z.enum(["currency", "crypto", "stock"]),
+          type: z.enum(["currency", "crypto", "stock", "fund"]),
         })
       )
       .query(async ({ input }) => {
@@ -216,50 +301,11 @@ export const appRouter = router({
     summary: protectedProcedure.query(async ({ ctx }) => {
       const holdings = await db.getUserHoldings(ctx.user.id);
       const exchangeRates = await priceService.fetchExchangeRates();
-
-      let totalValueUSD = 0;
-      const assets: PortfolioAssetSummary[] = [];
-
-      // Fetch real-time prices for each holding from API
-      for (const h of holdings) {
-        const symbol = h.asset.symbol;
-        const type = h.asset.type;
-        const quantity = parseFloat(h.holding.quantity);
-
-        try {
-          // Get real-time price from API
-          const priceData = await priceService.fetchAssetPrice(symbol, type);
-          const priceUSD = priceData.priceUSD;
-          const valueUSD = quantity * priceUSD;
-          totalValueUSD += valueUSD;
-
-          assets.push({
-            id: h.asset.id,
-            symbol: h.asset.symbol,
-            name: h.asset.name,
-            type: h.asset.type,
-            quantity,
-            priceUSD,
-            valueUSD,
-            change24h: priceData.change24h,
-            holding: h.holding,
-          });
-        } catch (error) {
-          console.error(`Error fetching price for ${symbol}:`, error);
-          // Fallback: use zero price if API fails
-          assets.push({
-            id: h.asset.id,
-            symbol: h.asset.symbol,
-            name: h.asset.name,
-            type: h.asset.type,
-            quantity,
-            priceUSD: 0,
-            valueUSD: 0,
-            change24h: 0,
-            holding: h.holding,
-          });
-        }
-      }
+      const assets = await priceUserHoldings(holdings);
+      const totalValueUSD = assets.reduce(
+        (sum, asset) => sum + asset.valueUSD,
+        0
+      );
 
       const usdToCny = exchangeRates.USD || 6.9;
       const totalValueCNY = totalValueUSD * usdToCny;

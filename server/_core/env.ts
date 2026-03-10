@@ -9,6 +9,6 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   /** 本地开发直通：未配置 OAuth 时使用该邮箱对应的用户进入仪表盘 */
   devUserEmail: process.env.DEV_USER_EMAIL ?? "",
-  /** 股票行情：Finnhub 免费 API Key（https://finnhub.io/register）可选，配置后优先用 Finnhub，国内更稳定 */
   finnhubApiKey: process.env.FINNHUB_API_KEY ?? "",
+  eodhdApiKey: process.env.EODHD_API_KEY ?? "",
 };

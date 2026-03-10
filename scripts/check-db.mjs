@@ -63,6 +63,26 @@ try {
     process.exit(1);
   }
   console.log("✅ users 表已存在");
+
+  const [assetTypeRows] = await conn.execute(
+    "SHOW COLUMNS FROM assets LIKE 'type'"
+  );
+  const assetTypeColumn = assetTypeRows[0];
+
+  if (!assetTypeColumn) {
+    console.error("❌ assets.type 字段不存在");
+    process.exit(1);
+  }
+
+  if (!String(assetTypeColumn.Type).includes("'fund'")) {
+    console.error("❌ assets.type 枚举尚未包含 fund");
+    console.error(
+      "\n→ 请执行 SQL: ALTER TABLE `assets` MODIFY COLUMN `type` enum('currency','crypto','stock','fund') NOT NULL;"
+    );
+    process.exit(1);
+  }
+
+  console.log("✅ assets.type 已包含 fund");
 } catch (err) {
   console.error("❌ 查询失败:", err.message);
   process.exit(1);

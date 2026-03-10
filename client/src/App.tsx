@@ -5,8 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import AssetDetail from "@/pages/AssetDetail";
 import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
+import StrategyPage from "@/pages/StrategyPage";
 
 import ErrorBoundary from "./components/ErrorBoundary";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 
@@ -16,6 +18,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/ai-strategy" component={StrategyPage} />
+      <Route path="/page2" component={StrategyPage} />
       <Route path="/asset/:id" component={AssetDetail} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
@@ -32,15 +36,17 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <LanguageProvider>
+        <ThemeProvider
+          defaultTheme="light"
+          // switchable
+        >
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ThemeProvider>
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }

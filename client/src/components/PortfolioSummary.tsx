@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Cell,
   Legend,
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useLanguage } from "@/hooks/useLanguage";
 import { trpc } from "@/lib/trpc";
 
 interface PortfolioData {
@@ -38,24 +39,402 @@ interface PortfolioData {
 
 interface Props {
   data?: PortfolioData;
+  /** When user clicks a category (type), scroll to holdings and focus that tab */
+  onCategoryClick?: (type: string) => void;
 }
 
-const COLORS = {
-  currency: "#3b82f6",
-  crypto: "#f59e0b",
-  stock: "#10b981",
-  BTC: "#f7931a",
-  ETH: "#627eea",
-  USDT: "#26a17b",
-  BNB: "#f3ba2f",
-  XRP: "#23292f",
-  ADA: "#0033ad",
-  SOL: "#9945ff",
-  DOGE: "#ba9f33",
-  MATIC: "#8247e5",
+// 同色系不同深浅：现金=蓝、虚拟货币=黄、股票=绿、其他=灰
+const TYPE_PALETTES: Record<string, string[]> = {
+  currency: ["#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe", "#dbeafe"], // 蓝 深→浅
+  crypto: ["#ca8a04", "#eab308", "#facc15", "#fde047", "#fef08a"], // 黄 深→浅
+  stock: ["#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0"], // 绿 深→浅
+  fund: ["#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe"], // 紫 深→浅 中国基金
+};
+const GRAY_PALETTE = ["#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"];
+
+// 类型顺序：同色系排在一起，圆饼顺时针为 现金→虚拟货币→股票→其他
+const TYPE_ORDER: Record<string, number> = {
+  currency: 0,
+  crypto: 1,
+  stock: 2,
+  fund: 3,
+};
+const TYPE_LABELS_ZH: Record<string, string> = {
+  currency: "货币",
+  crypto: "虚拟货币",
+  stock: "股票",
+  fund: "基金",
+};
+function getTypeOrder(type: string): number {
+  return TYPE_ORDER[type] ?? 4;
+}
+
+function getColorByTypeAndIndex(type: string, index: number): string {
+  const palette = TYPE_PALETTES[type] ?? GRAY_PALETTE;
+  return palette[Math.min(index, palette.length - 1)];
+}
+
+function getColorByType(type: string): string {
+  return getColorByTypeAndIndex(type, 0);
+}
+
+type NoodleVizProps = {
+  isZh: boolean;
+  locations: Array<{ id: string; name: string; priceCNY: number }>;
+  noodlePriceCNY: number;
+  bowlsToday: number;
+  bowlsDeltaVsYesterday: number | null;
+  totalValueCNY: number;
+  exchangeRate: number;
+  selectedLocationId: string;
+  onLocationChange: (nextId: string) => void;
 };
 
-export default function PortfolioSummary({ data }: Props) {
+function formatBowlsZh(bowls: number): string {
+  if (!Number.isFinite(bowls) || bowls <= 0) return "0 碗";
+  if (bowls >= 1e6) return `${(bowls / 1e6).toFixed(1)} 百万碗`;
+  if (bowls >= 1e4) return `${(bowls / 1e4).toFixed(1)} 万碗`;
+  return `${bowls.toFixed(0)} 碗`;
+}
+
+function formatBowlsEn(bowls: number): string {
+  if (!Number.isFinite(bowls) || bowls <= 0) return "0 bowls";
+  if (bowls >= 1e6) return `${(bowls / 1e6).toFixed(1)}M bowls`;
+  if (bowls >= 1e3) return `${(bowls / 1e3).toFixed(1)}K bowls`;
+  return `${bowls.toFixed(0)} bowls`;
+}
+
+function NoodleViz({
+  isZh,
+  locations,
+  noodlePriceCNY,
+  bowlsToday,
+  bowlsDeltaVsYesterday,
+  totalValueCNY,
+  exchangeRate,
+  selectedLocationId,
+  onLocationChange,
+}: NoodleVizProps) {
+  const selectedLocation =
+    locations.find(location => location.id === selectedLocationId) ??
+    locations[0];
+  const bowlsPerWeek = bowlsToday / 7;
+  const yearsAtThreeBowls = bowlsToday / 3 / 365;
+  const bowlsInflationAdjusted = bowlsToday / Math.pow(1.03, 10);
+  const detailCards = [
+    {
+      label: isZh ? "地区市场" : "Market node",
+      value: selectedLocation?.name ?? (isZh ? "成都" : "Chengdu"),
+      hint: isZh ? "当前面价基准" : "Current price anchor",
+    },
+    {
+      label: isZh ? "单碗价格" : "Per bowl",
+      value: `¥${noodlePriceCNY}`,
+      hint: isZh ? "趣味换算单位" : "Conversion unit",
+    },
+    {
+      label: isZh ? "总资产" : "Total capital",
+      value: `¥${totalValueCNY.toLocaleString("en-US", {
+        maximumFractionDigits: 0,
+      })}`,
+      hint: isZh ? "当前消费火力" : "Consumption power",
+    },
+    {
+      label: isZh ? "USD/CNY" : "USD/CNY",
+      value: exchangeRate.toFixed(4),
+      hint: isZh ? "实时汇率" : "Live FX",
+    },
+  ];
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-3xl border border-cyan-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(8,145,178,0.25),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.16),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(7,20,43,0.98)_42%,_rgba(4,10,29,1))] p-4 text-slate-100 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_24px_60px_-24px_rgba(59,130,246,0.45)] sm:p-5">
+      <style>{`
+        @keyframes noodle-globe-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes noodle-ring-drift { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.04); } to { transform: rotate(360deg) scale(1); } }
+        @keyframes noodle-pulse { 0%, 100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.16); } }
+        @keyframes noodle-scan { 0% { transform: translateY(-130%); } 100% { transform: translateY(130%); } }
+      `}</style>
+
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/80">
+            {isZh ? "Consumption Singularity" : "Consumption Singularity"}
+          </div>
+          <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            {isZh ? "坐吃山空 · 赛博生存面板" : "Cyber Consumption Console"}
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300/85">
+            {isZh
+              ? "把总资产映射成城市生存半径。旋转地球会联动不同城市的面价节点，右侧面板展示你的实时消费火力与续航。"
+              : "Map total assets into a city survival radius. The rotating globe links different city price nodes while the right panel shows your live consumption firepower and runway."}
+          </p>
+        </div>
+
+        <Select value={selectedLocationId} onValueChange={onLocationChange}>
+          <SelectTrigger className="w-full border-cyan-400/30 bg-slate-950/60 text-slate-100 shadow-[0_0_18px_rgba(34,211,238,0.15)] sm:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {locations.map(loc => (
+              <SelectItem key={loc.id} value={loc.id}>
+                {loc.name} ¥{loc.priceCNY}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[280px_minmax(320px,1fr)_320px]">
+        <div className="space-y-3">
+          {locations.map((location, index) => {
+            const selected = location.id === selectedLocationId;
+
+            return (
+              <button
+                key={location.id}
+                type="button"
+                onClick={() => onLocationChange(location.id)}
+                className={`group relative w-full overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all duration-300 ${
+                  selected
+                    ? "border-cyan-300/50 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.2)]"
+                    : "border-white/10 bg-white/[0.03] hover:border-cyan-400/30 hover:bg-white/[0.05]"
+                }`}
+              >
+                <div
+                  className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-cyan-300/80 to-transparent"
+                  style={{ opacity: selected ? 1 : 0.35 }}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.9)]"
+                      style={{
+                        animation: `noodle-pulse ${1.5 + index * 0.18}s ease-in-out infinite`,
+                      }}
+                    />
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                        {isZh ? "节点" : "Node"}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-white">
+                        {location.name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-cyan-100">
+                    ¥{location.priceCNY}
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-400">
+                  {selected
+                    ? isZh
+                      ? "当前主视角城市，地球轨道和统计面板已同步。"
+                      : "Active city node. Globe orbit and metrics are synchronized."
+                    : isZh
+                      ? "点击切换到该城市，观察你的消费火力变化。"
+                      : "Switch to this city to compare your consumption power."}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative overflow-hidden rounded-[32px] border border-cyan-400/15 bg-[radial-gradient(circle_at_center,_rgba(37,99,235,0.2),_rgba(2,6,23,0.05)_42%,_transparent_70%)] px-4 py-6 sm:px-6">
+          <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(34,211,238,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.12)_1px,transparent_1px)] [background-size:32px_32px]" />
+          <div
+            className="pointer-events-none absolute left-0 right-0 top-0 h-24 bg-gradient-to-b from-cyan-300/10 to-transparent"
+            style={{ animation: "noodle-scan 5.8s linear infinite" }}
+          />
+
+          <div className="relative mx-auto flex aspect-square w-full max-w-[340px] items-center justify-center">
+            <div
+              className="absolute inset-[8%] rounded-full border border-cyan-400/25"
+              style={{ animation: "noodle-ring-drift 18s linear infinite" }}
+            />
+            <div
+              className="absolute inset-[2%] rounded-full border border-fuchsia-400/15"
+              style={{
+                animation: "noodle-ring-drift 24s linear infinite reverse",
+              }}
+            />
+            <div className="absolute inset-[18%] rounded-full bg-cyan-500/10 blur-3xl" />
+
+            <div className="relative h-[76%] w-[76%] overflow-hidden rounded-full border border-cyan-300/35 bg-[radial-gradient(circle_at_30%_30%,_rgba(125,211,252,0.22),_rgba(14,116,144,0.42)_28%,_rgba(8,47,73,0.82)_68%,_rgba(2,6,23,0.98)_100%)] shadow-[0_0_50px_rgba(59,130,246,0.4)]">
+              <div className="absolute inset-0 opacity-25 [background-image:repeating-linear-gradient(0deg,transparent_0,transparent_18px,rgba(125,211,252,0.18)_18px,rgba(125,211,252,0.18)_19px),repeating-linear-gradient(90deg,transparent_0,transparent_18px,rgba(125,211,252,0.15)_18px,rgba(125,211,252,0.15)_19px)]" />
+              <svg
+                viewBox="0 0 100 100"
+                className="absolute inset-0 h-full w-full"
+                style={{ animation: "noodle-globe-spin 22s linear infinite" }}
+              >
+                <defs>
+                  <linearGradient
+                    id="planetGlow"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop offset="0%" stopColor="rgba(103,232,249,0.95)" />
+                    <stop offset="50%" stopColor="rgba(59,130,246,0.75)" />
+                    <stop offset="100%" stopColor="rgba(14,165,233,0.4)" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M33 22c7-8 19-12 31-8 8 2 16 8 21 17 4 8 5 17 2 25-4 10-13 19-25 22-7 2-15 2-22-1-8-3-15-9-19-18-3-8-3-17 1-25 2-5 6-9 11-12Z"
+                  fill="rgba(125,211,252,0.08)"
+                  stroke="url(#planetGlow)"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M24 40c7-4 14-2 19 1 5 3 10 2 15-1 7-5 17-5 24 0"
+                  fill="none"
+                  stroke="rgba(165,243,252,0.35)"
+                  strokeWidth="1"
+                />
+                <path
+                  d="M28 56c8 4 15 6 22 5 6-1 13 0 21 4"
+                  fill="none"
+                  stroke="rgba(103,232,249,0.22)"
+                  strokeWidth="1"
+                />
+                {locations.map((location, index) => {
+                  const coords = [
+                    [58, 30],
+                    [64, 38],
+                    [70, 47],
+                    [67, 59],
+                  ][index] ?? [60, 42];
+                  const selected = location.id === selectedLocationId;
+
+                  return (
+                    <g key={location.id}>
+                      <circle
+                        cx={coords[0]}
+                        cy={coords[1]}
+                        r={selected ? 3.2 : 2.1}
+                        fill={selected ? "#67e8f9" : "#93c5fd"}
+                        opacity={selected ? 1 : 0.8}
+                      />
+                      <circle
+                        cx={coords[0]}
+                        cy={coords[1]}
+                        r={selected ? 8 : 5}
+                        fill="none"
+                        stroke={
+                          selected
+                            ? "rgba(103,232,249,0.5)"
+                            : "rgba(147,197,253,0.2)"
+                        }
+                        strokeWidth="0.9"
+                      />
+                    </g>
+                  );
+                })}
+              </svg>
+              <div className="absolute inset-y-0 left-[14%] w-[28%] rounded-full bg-gradient-to-r from-transparent via-cyan-100/20 to-transparent blur-md" />
+            </div>
+          </div>
+
+          <div className="relative mt-5 grid gap-3 sm:grid-cols-4">
+            {detailCards.map(card => (
+              <div
+                key={card.label}
+                className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+              >
+                <p className="text-[11px] uppercase tracking-[0.26em] text-slate-400">
+                  {card.label}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {card.value}
+                </p>
+                <p className="mt-2 text-[11px] text-slate-400">{card.hint}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[28px] border border-cyan-400/20 bg-white/[0.03] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/80">
+              {isZh ? "今日可吃" : "Today capacity"}
+            </p>
+            <div className="mt-4 text-[2.2rem] font-semibold leading-none tracking-tight text-white sm:text-[2.8rem]">
+              {isZh ? formatBowlsZh(bowlsToday) : formatBowlsEn(bowlsToday)}
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100">
+                {selectedLocation?.name}
+              </span>
+              <span
+                className={`${bowlsDeltaVsYesterday != null && bowlsDeltaVsYesterday >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+              >
+                {bowlsDeltaVsYesterday == null
+                  ? isZh
+                    ? "暂无昨日对比"
+                    : "No yesterday comparison"
+                  : isZh
+                    ? `较昨日 ${bowlsDeltaVsYesterday >= 0 ? "+" : "-"}${formatBowlsZh(Math.abs(bowlsDeltaVsYesterday)).replace(" 碗", "")} 碗`
+                    : `vs yesterday ${bowlsDeltaVsYesterday >= 0 ? "+" : "-"}${formatBowlsEn(Math.abs(bowlsDeltaVsYesterday)).replace(" bowls", "")} bowls`}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                {isZh ? "每周火力" : "Weekly run rate"}
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">
+                {isZh
+                  ? formatBowlsZh(bowlsPerWeek)
+                  : formatBowlsEn(bowlsPerWeek)}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">
+                {isZh
+                  ? "按当前城市面价折算成一周可消费火力。"
+                  : "Your weekly consumption power at the selected city price point."}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                {isZh ? "每天三碗" : "3 bowls / day"}
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">
+                {yearsAtThreeBowls.toFixed(1)} {isZh ? "年" : "yrs"}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">
+                {isZh
+                  ? "如果每天吃三碗，你的组合理论续航时长。"
+                  : "How long the portfolio theoretically lasts if you eat three bowls every day."}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-fuchsia-400/15 bg-fuchsia-500/5 p-4 shadow-[0_0_40px_rgba(217,70,239,0.08)]">
+            <p className="text-xs uppercase tracking-[0.24em] text-fuchsia-200/80">
+              {isZh ? "通胀扰动模拟" : "Inflation stress"}
+            </p>
+            <p className="mt-2 text-xl font-semibold text-white">
+              {isZh
+                ? formatBowlsZh(bowlsInflationAdjusted)
+                : formatBowlsEn(bowlsInflationAdjusted)}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-300/80">
+              {isZh
+                ? "按 3% 年化通胀粗略折算，十年后的实际购买力会更低，这个数字帮助你感受长期消费折损。"
+                : "A rough 3% inflation stress over ten years, visualizing how long-term purchasing power fades."}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function PortfolioSummary({ data, onCategoryClick }: Props) {
+  const { language } = useLanguage();
+  const isZh = language === "zh";
   const [currencyDisplay, setCurrencyDisplay] = useState<"USD" | "CNY">("USD");
 
   // 城市 → 一碗面均价（元），用于趣味换算
@@ -66,18 +445,15 @@ export default function PortfolioSummary({ data }: Props) {
     { id: "shenzhen", name: "深圳", priceCNY: 18 },
   ] as const;
   const [locationId, setLocationId] = useState<string>("chengdu");
-  const BOWLS_PER_DAY = 3;
-  const BOWLS_PER_YEAR = BOWLS_PER_DAY * 365;
   const noodlePriceCNY =
     LOCATIONS.find(l => l.id === locationId)?.priceCNY ?? 15;
-  // 年通胀率（如 0.03 = 3%），用于计算考虑涨价后实际可吃碗数与年数
-  const INFLATION_RATE = 0.03;
 
   const { data: priceData, isLoading: isPriceLoading } =
     trpc.prices.fetchSingle.useQuery(
       { symbol: "USD", type: "currency" },
       { enabled: true, refetchInterval: 5 * 60 * 1000 }
     );
+  const historyQuery = trpc.portfolioHistory.get.useQuery({ days: 2 });
   const exchangeRate =
     priceData?.priceCNY && priceData.priceCNY > 0
       ? priceData.priceCNY
@@ -86,16 +462,12 @@ export default function PortfolioSummary({ data }: Props) {
         : 6.9444;
   const isLoadingRate = isPriceLoading;
 
-  if (!data || data.assets.length === 0) {
-    return null;
-  }
-
-  // Aggregate same asset (e.g. multiple ETH holdings) by symbol: one row per symbol with summed value
+  // Aggregate same asset (e.g. multiple ETH holdings) by symbol: for asset count only
   const bySymbol = new Map<
     string,
     { symbol: string; valueUSD: number; type: string; name: string }
   >();
-  for (const asset of data.assets) {
+  for (const asset of data?.assets ?? []) {
     const key = asset.symbol;
     const existing = bySymbol.get(key);
     if (existing) {
@@ -111,26 +483,26 @@ export default function PortfolioSummary({ data }: Props) {
   }
   const aggregatedAssets = Array.from(bySymbol.values());
 
-  const allocationByAsset = aggregatedAssets.map(asset => ({
-    name: asset.symbol,
-    value: asset.valueUSD,
-    type: asset.type,
-    displayName: asset.symbol,
-  }));
-
-  const pieChartData = allocationByAsset.map(item => ({
-    name: item.displayName,
-    value: Math.round(item.value * 100) / 100,
-  }));
-
-  // Calculate type-based allocation for summary cards
+  // Type-level allocation for pie and summary (no per-asset breakdown)
   const typeAllocation: Record<string, number> = {};
-  data.assets.forEach(asset => {
+  (data?.assets ?? []).forEach(asset => {
     if (!typeAllocation[asset.type]) {
       typeAllocation[asset.type] = 0;
     }
     typeAllocation[asset.type] += asset.valueUSD;
   });
+
+  // Pie chart: one slice per type, ordered by TYPE_ORDER; name for display (zh/en)
+  const pieChartData = (Object.entries(typeAllocation) as [string, number][])
+    .filter(([, value]) => value > 0)
+    .sort(([a], [b]) => getTypeOrder(a) - getTypeOrder(b))
+    .map(([type, value]) => ({
+      name: isZh
+        ? (TYPE_LABELS_ZH[type] ?? type)
+        : type.charAt(0).toUpperCase() + type.slice(1),
+      value: Math.round(value * 100) / 100,
+      type,
+    }));
 
   const formatPercent = (value: number) => {
     return `${(value * 100).toFixed(2)}%`;
@@ -140,18 +512,43 @@ export default function PortfolioSummary({ data }: Props) {
   const displayValue =
     currencyDisplay === "CNY" ? data?.totalValueCNY : data?.totalValueUSD;
 
-  // Get color for asset
-  const getAssetColor = (symbol: string) => {
-    return COLORS[symbol as keyof typeof COLORS] || "#6b7280";
-  };
+  const noodleVizData = useMemo(() => {
+    const totalValueUSD = data?.totalValueUSD ?? 0;
+    const totalValueCNY = totalValueUSD * exchangeRate;
+    const bowlsToday = noodlePriceCNY > 0 ? totalValueCNY / noodlePriceCNY : 0;
+
+    const records = (historyQuery.data ?? [])
+      .map(r => ({
+        t: new Date(r.timestamp).getTime(),
+        v: parseFloat(r.totalValue),
+      }))
+      .filter(r => Number.isFinite(r.t) && Number.isFinite(r.v) && r.v >= 0)
+      .sort((a, b) => a.t - b.t);
+    const latest = records.length > 0 ? records[records.length - 1] : null;
+    const prev = records.length > 1 ? records[records.length - 2] : null;
+    const deltaUSD = latest && prev ? latest.v - prev.v : null;
+    const deltaCNY = deltaUSD != null ? deltaUSD * exchangeRate : null;
+    const bowlsDelta =
+      deltaCNY != null && noodlePriceCNY > 0 ? deltaCNY / noodlePriceCNY : null;
+
+    return {
+      totalValueCNY,
+      bowlsToday,
+      bowlsDelta,
+    };
+  }, [data?.totalValueUSD, exchangeRate, historyQuery.data, noodlePriceCNY]);
+
+  if (!data || data.assets.length === 0) {
+    return null;
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="space-y-6">
       {/* Total Value Card */}
-      <Card className="md:col-span-1">
+      <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Total Portfolio Value
+            {isZh ? "组合总价值" : "Total Portfolio Value"}
           </CardTitle>
           <Select
             value={currencyDisplay}
@@ -175,181 +572,100 @@ export default function PortfolioSummary({ data }: Props) {
             })}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            {aggregatedAssets.length} assets ({data.assets.length} holdings)
-            tracked
+            {isZh
+              ? `共 ${aggregatedAssets.length} 个资产（${data.assets.length} 条持仓）`
+              : `${aggregatedAssets.length} assets (${data.assets.length} holdings) tracked`}
           </p>
           <div className="mt-3 pt-3 border-t border-border">
             <p className="text-xs text-muted-foreground">
-              Exchange Rate (USD to CNY)
+              {isZh ? "汇率（美元兑人民币）" : "Exchange Rate (USD to CNY)"}
             </p>
             <p className="text-sm font-semibold text-foreground">
               1 USD = {exchangeRate.toFixed(4)} CNY
             </p>
             {isLoadingRate && (
-              <p className="text-xs text-muted-foreground mt-1">Updating...</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isZh ? "更新中..." : "Updating..."}
+              </p>
             )}
           </div>
-          {/* 一碗面趣味换算 - Linear/Notion 风格居中 */}
-          {(() => {
-            const totalCNY = (data?.totalValueUSD ?? 0) * exchangeRate;
-            const bowls = noodlePriceCNY > 0 ? totalCNY / noodlePriceCNY : 0;
-            const years = BOWLS_PER_YEAR > 0 ? bowls / BOWLS_PER_YEAR : 0;
-            const bowlsLabel =
-              bowls >= 1e6
-                ? `${(bowls / 1e6).toFixed(1)} 百万碗`
-                : bowls >= 1e4
-                  ? `${(bowls / 1e4).toFixed(1)} 万碗`
-                  : `${bowls.toFixed(0)} 碗`;
-            const yearsLabel =
-              years >= 1 ? `${years.toFixed(1)} 年` : `${years.toFixed(2)} 年`;
-
-            // 考虑通胀：每年面价涨 (1+r)，可吃年数 N 满足 totalCNY = BOWLS_PER_YEAR * P * ((1+r)^N - 1) / r
-            const annualSpendBase = BOWLS_PER_YEAR * noodlePriceCNY;
-            let yearsWithInfl = 0;
-            let bowlsWithInfl = 0;
-            if (annualSpendBase > 0) {
-              if (INFLATION_RATE <= 0) {
-                yearsWithInfl = totalCNY / annualSpendBase;
-                bowlsWithInfl = yearsWithInfl * BOWLS_PER_YEAR;
-              } else {
-                const ratio = (totalCNY * INFLATION_RATE) / annualSpendBase;
-                yearsWithInfl =
-                  Math.log(1 + ratio) / Math.log(1 + INFLATION_RATE);
-                bowlsWithInfl = yearsWithInfl * BOWLS_PER_YEAR;
-              }
-            }
-            const bowlsWithInflLabel =
-              bowlsWithInfl >= 1e6
-                ? `${(bowlsWithInfl / 1e6).toFixed(1)} 百万碗`
-                : bowlsWithInfl >= 1e4
-                  ? `${(bowlsWithInfl / 1e4).toFixed(1)} 万碗`
-                  : `${Math.round(bowlsWithInfl)} 碗`;
-            const yearsWithInflLabel =
-              yearsWithInfl >= 1
-                ? `${yearsWithInfl.toFixed(1)} 年`
-                : `${yearsWithInfl.toFixed(2)} 年`;
-
-            return (
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="rounded-lg bg-muted/40 border border-border/60 p-4">
-                  <h3 className="text-sm font-medium text-foreground tracking-tight mb-4 pb-2 border-b border-border/60">
-                    坐吃山空
-                  </h3>
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        一碗面约 ¥{noodlePriceCNY}
-                      </span>
-                      <Select value={locationId} onValueChange={setLocationId}>
-                        <SelectTrigger className="w-20 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent align="end">
-                          {LOCATIONS.map(loc => (
-                            <SelectItem key={loc.id} value={loc.id}>
-                              {loc.name} ¥{loc.priceCNY}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 py-1">
-                      <span
-                        className="text-5xl leading-none select-none"
-                        aria-hidden
-                      >
-                        🍜
-                      </span>
-                      <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-                        {bowlsLabel}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        每天 {BOWLS_PER_DAY} 碗
-                      </span>
-                      <span className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-                        {yearsLabel}
-                      </span>
-                    </div>
-                    <div className="mt-2 pt-3 border-t border-border/50 space-y-2">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-xs text-muted-foreground">
-                          考虑通胀后约可吃
-                        </span>
-                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-                          {bowlsWithInflLabel}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          约
-                        </span>
-                        <span className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-                          {yearsWithInflLabel}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground pt-1">
-                        假设通胀率 {(INFLATION_RATE * 100).toFixed(0)}
-                        %/年，仅供参考
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+          <NoodleViz
+            isZh={isZh}
+            locations={LOCATIONS.map(l => ({
+              id: l.id,
+              name: isZh
+                ? l.name
+                : l.id === "chengdu"
+                  ? "Chengdu"
+                  : l.id === "beijing"
+                    ? "Beijing"
+                    : l.id === "shanghai"
+                      ? "Shanghai"
+                      : "Shenzhen",
+              priceCNY: l.priceCNY,
+            }))}
+            noodlePriceCNY={noodlePriceCNY}
+            bowlsToday={noodleVizData.bowlsToday}
+            bowlsDeltaVsYesterday={noodleVizData.bowlsDelta}
+            totalValueCNY={noodleVizData.totalValueCNY}
+            exchangeRate={exchangeRate}
+            selectedLocationId={locationId}
+            onLocationChange={setLocationId}
+          />
         </CardContent>
       </Card>
 
-      {/* Asset Allocation */}
-      <Card className="md:col-span-2">
+      {/* Asset Allocation / 资产配置 */}
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Asset Allocation
+            {isZh ? "资产配置" : "Asset Allocation"}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Type-based allocation summary */}
+          {/* Type-based allocation summary (clickable → scroll to holdings tab) */}
           <div className="grid grid-cols-3 gap-4 mb-6">
-            {Object.entries(typeAllocation).map(([type, value]) => {
-              const displayValue =
-                currencyDisplay === "CNY" ? value * exchangeRate : value;
-              return (
-                <div key={type} className="text-center">
-                  <div
-                    className="w-3 h-3 rounded-full mx-auto mb-2"
-                    style={{
-                      backgroundColor:
-                        COLORS[type as keyof typeof COLORS] || "#6b7280",
-                    }}
-                  />
-                  <p className="text-xs font-medium text-muted-foreground capitalize">
-                    {type}
-                  </p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {formatPercent(value / data.totalValueUSD)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {currencyDisplay === "CNY" ? "¥" : "$"}
-                    {displayValue.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-              );
-            })}
+            {Object.entries(typeAllocation)
+              .sort(([a], [b]) => getTypeOrder(a) - getTypeOrder(b))
+              .map(([type, value]) => {
+                const displayValue =
+                  currencyDisplay === "CNY" ? value * exchangeRate : value;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onCategoryClick?.(type)}
+                    className="text-center rounded-lg border border-transparent p-3 transition-colors hover:bg-muted/50 hover:border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full mx-auto mb-2"
+                      style={{
+                        backgroundColor: getColorByType(type),
+                      }}
+                    />
+                    <p className="text-xs font-medium text-muted-foreground capitalize">
+                      {isZh ? (TYPE_LABELS_ZH[type] ?? type) : type}
+                    </p>
+                    <p className="text-lg font-semibold text-foreground">
+                      {formatPercent(value / data.totalValueUSD)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {currencyDisplay === "CNY" ? "¥" : "$"}
+                      {displayValue.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </button>
+                );
+              })}
           </div>
 
-          {/* Pie chart showing individual assets */}
+          {/* Pie chart: one slice per type (clickable) */}
           {pieChartData.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-3">
-                Individual Asset Breakdown
-              </p>
               <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
+                <PieChart margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
                   <Pie
                     data={pieChartData}
                     cx="50%"
@@ -358,21 +674,26 @@ export default function PortfolioSummary({ data }: Props) {
                     outerRadius={80}
                     paddingAngle={2}
                     dataKey="value"
+                    onClick={(payload: unknown) => {
+                      const d = payload as { type?: string };
+                      if (d?.type) onCategoryClick?.(d.type);
+                    }}
+                    style={{ cursor: onCategoryClick ? "pointer" : undefined }}
                   >
                     {pieChartData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={getAssetColor(entry.name)}
+                        fill={getColorByType(entry.type)}
                       />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => {
-                      const displayValue =
+                      const displayVal =
                         currencyDisplay === "CNY"
                           ? value * exchangeRate
                           : value;
-                      return `${currencyDisplay === "CNY" ? "¥" : "$"}${displayValue.toLocaleString(
+                      return `${currencyDisplay === "CNY" ? "¥" : "$"}${displayVal.toLocaleString(
                         "en-US",
                         {
                           minimumFractionDigits: 2,
@@ -391,51 +712,6 @@ export default function PortfolioSummary({ data }: Props) {
                   />
                 </PieChart>
               </ResponsiveContainer>
-
-              {/* Individual asset details (aggregated by symbol) */}
-              <div className="mt-4 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Asset Details:
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {aggregatedAssets.map(asset => {
-                    const displayValue =
-                      currencyDisplay === "CNY"
-                        ? asset.valueUSD * exchangeRate
-                        : asset.valueUSD;
-                    const percentage =
-                      (asset.valueUSD / data.totalValueUSD) * 100;
-                    return (
-                      <div
-                        key={asset.symbol}
-                        className="text-xs p-2 bg-muted rounded"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-2 h-2 rounded-full"
-                              style={{
-                                backgroundColor: getAssetColor(asset.symbol),
-                              }}
-                            />
-                            <span className="font-medium">{asset.symbol}</span>
-                          </div>
-                          <span className="text-muted-foreground">
-                            {percentage.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground mt-1">
-                          {currencyDisplay === "CNY" ? "¥" : "$"}
-                          {displayValue.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           )}
         </CardContent>
