@@ -147,7 +147,7 @@ function NoodleViz({
   ];
 
   return (
-    <div className="mt-4 overflow-hidden rounded-3xl border border-cyan-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(8,145,178,0.25),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.16),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(7,20,43,0.98)_42%,_rgba(4,10,29,1))] p-4 text-slate-100 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_24px_60px_-24px_rgba(59,130,246,0.45)] sm:p-5">
+    <div className="mt-4 overflow-hidden rounded-3xl border border-amber-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(180,83,9,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.12),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(15,10,5,0.98)_42%,_rgba(4,4,6,1))] p-4 text-slate-100 shadow-[0_0_0_1px_rgba(245,158,11,0.08),0_24px_60px_-24px_rgba(217,119,6,0.3)] sm:p-5">
       <style>{`
         @keyframes noodle-globe-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes noodle-ring-drift { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.04); } to { transform: rotate(360deg) scale(1); } }
@@ -157,7 +157,7 @@ function NoodleViz({
 
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/80">
+          <div className="text-[11px] uppercase tracking-[0.28em] text-amber-300/80">
             {isZh ? "Consumption Singularity" : "Consumption Singularity"}
           </div>
           <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
@@ -171,7 +171,7 @@ function NoodleViz({
         </div>
 
         <Select value={selectedLocationId} onValueChange={onLocationChange}>
-          <SelectTrigger className="w-full border-cyan-400/30 bg-slate-950/60 text-slate-100 shadow-[0_0_18px_rgba(34,211,238,0.15)] sm:w-44">
+          <SelectTrigger className="w-full border-amber-400/30 bg-slate-950/60 text-slate-100 shadow-[0_0_18px_rgba(245,158,11,0.12)] sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end">
@@ -196,18 +196,18 @@ function NoodleViz({
                 onClick={() => onLocationChange(location.id)}
                 className={`group relative w-full overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all duration-300 ${
                   selected
-                    ? "border-cyan-300/50 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.2)]"
-                    : "border-white/10 bg-white/[0.03] hover:border-cyan-400/30 hover:bg-white/[0.05]"
+                    ? "border-amber-300/50 bg-amber-400/10 shadow-[0_0_30px_rgba(245,158,11,0.15)]"
+                    : "border-white/10 bg-white/[0.03] hover:border-amber-400/30 hover:bg-white/[0.05]"
                 }`}
               >
                 <div
-                  className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-cyan-300/80 to-transparent"
+                  className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-amber-300/80 to-transparent"
                   style={{ opacity: selected ? 1 : 0.35 }}
                 />
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span
-                      className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.9)]"
+                      className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.9)]"
                       style={{
                         animation: `noodle-pulse ${1.5 + index * 0.18}s ease-in-out infinite`,
                       }}
@@ -221,7 +221,7 @@ function NoodleViz({
                       </p>
                     </div>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-cyan-100">
+                  <div className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-amber-100">
                     ¥{location.priceCNY}
                   </div>
                 </div>
@@ -239,99 +239,121 @@ function NoodleViz({
           })}
         </div>
 
-        <div className="relative overflow-hidden rounded-[32px] border border-cyan-400/15 bg-[radial-gradient(circle_at_center,_rgba(37,99,235,0.2),_rgba(2,6,23,0.05)_42%,_transparent_70%)] px-4 py-6 sm:px-6">
-          <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(34,211,238,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.12)_1px,transparent_1px)] [background-size:32px_32px]" />
-          <div
-            className="pointer-events-none absolute left-0 right-0 top-0 h-24 bg-gradient-to-b from-cyan-300/10 to-transparent"
-            style={{ animation: "noodle-scan 5.8s linear infinite" }}
-          />
+        <div className="relative overflow-hidden rounded-[32px] border border-amber-400/15 bg-[radial-gradient(circle_at_center,_rgba(180,83,9,0.1),_rgba(2,6,23,0.05)_42%,_transparent_70%)] px-4 py-6 sm:px-6">
+          <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(245,158,11,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.08)_1px,transparent_1px)] [background-size:32px_32px]" />
 
           <div className="relative mx-auto flex aspect-square w-full max-w-[340px] items-center justify-center">
             <div
-              className="absolute inset-[8%] rounded-full border border-cyan-400/25"
+              className="absolute inset-[8%] rounded-full border border-amber-400/15"
               style={{ animation: "noodle-ring-drift 18s linear infinite" }}
             />
             <div
-              className="absolute inset-[2%] rounded-full border border-fuchsia-400/15"
+              className="absolute inset-[2%] rounded-full border border-amber-300/8"
               style={{
                 animation: "noodle-ring-drift 24s linear infinite reverse",
               }}
             />
-            <div className="absolute inset-[18%] rounded-full bg-cyan-500/10 blur-3xl" />
+            <div className="absolute inset-[18%] rounded-full bg-amber-500/5 blur-3xl" />
 
-            <div className="relative h-[76%] w-[76%] overflow-hidden rounded-full border border-cyan-300/35 bg-[radial-gradient(circle_at_30%_30%,_rgba(125,211,252,0.22),_rgba(14,116,144,0.42)_28%,_rgba(8,47,73,0.82)_68%,_rgba(2,6,23,0.98)_100%)] shadow-[0_0_50px_rgba(59,130,246,0.4)]">
-              <div className="absolute inset-0 opacity-25 [background-image:repeating-linear-gradient(0deg,transparent_0,transparent_18px,rgba(125,211,252,0.18)_18px,rgba(125,211,252,0.18)_19px),repeating-linear-gradient(90deg,transparent_0,transparent_18px,rgba(125,211,252,0.15)_18px,rgba(125,211,252,0.15)_19px)]" />
+            <div className="relative h-[76%] w-[76%] overflow-hidden rounded-full border border-amber-300/25 bg-[radial-gradient(circle_at_30%_30%,_rgba(253,230,138,0.06),_rgba(120,53,15,0.12)_28%,_rgba(30,15,5,0.6)_68%,_rgba(2,6,23,0.98)_100%)] shadow-[0_0_40px_rgba(245,158,11,0.15)]">
               <svg
-                viewBox="0 0 100 100"
+                viewBox="0 0 200 200"
                 className="absolute inset-0 h-full w-full"
-                style={{ animation: "noodle-globe-spin 22s linear infinite" }}
+                style={{ animation: "noodle-globe-spin 28s linear infinite" }}
               >
                 <defs>
-                  <linearGradient
-                    id="planetGlow"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <stop offset="0%" stopColor="rgba(103,232,249,0.95)" />
-                    <stop offset="50%" stopColor="rgba(59,130,246,0.75)" />
-                    <stop offset="100%" stopColor="rgba(14,165,233,0.4)" />
-                  </linearGradient>
+                  <clipPath id="globeClip">
+                    <circle cx="100" cy="100" r="98" />
+                  </clipPath>
                 </defs>
-                <path
-                  d="M33 22c7-8 19-12 31-8 8 2 16 8 21 17 4 8 5 17 2 25-4 10-13 19-25 22-7 2-15 2-22-1-8-3-15-9-19-18-3-8-3-17 1-25 2-5 6-9 11-12Z"
-                  fill="rgba(125,211,252,0.08)"
-                  stroke="url(#planetGlow)"
-                  strokeWidth="1.2"
-                />
-                <path
-                  d="M24 40c7-4 14-2 19 1 5 3 10 2 15-1 7-5 17-5 24 0"
-                  fill="none"
-                  stroke="rgba(165,243,252,0.35)"
-                  strokeWidth="1"
-                />
-                <path
-                  d="M28 56c8 4 15 6 22 5 6-1 13 0 21 4"
-                  fill="none"
-                  stroke="rgba(103,232,249,0.22)"
-                  strokeWidth="1"
-                />
-                {locations.map((location, index) => {
-                  const coords = [
-                    [58, 30],
-                    [64, 38],
-                    [70, 47],
-                    [67, 59],
-                  ][index] ?? [60, 42];
-                  const selected = location.id === selectedLocationId;
-
-                  return (
-                    <g key={location.id}>
-                      <circle
-                        cx={coords[0]}
-                        cy={coords[1]}
-                        r={selected ? 3.2 : 2.1}
-                        fill={selected ? "#67e8f9" : "#93c5fd"}
-                        opacity={selected ? 1 : 0.8}
-                      />
-                      <circle
-                        cx={coords[0]}
-                        cy={coords[1]}
-                        r={selected ? 8 : 5}
+                <g clipPath="url(#globeClip)">
+                  {[-60, -30, 0, 30, 60].map(lat => {
+                    const y = 100 - lat * 0.9;
+                    const rx = Math.cos((lat * Math.PI) / 180) * 90;
+                    return (
+                      <ellipse
+                        key={`lat-${lat}`}
+                        cx="100"
+                        cy={y}
+                        rx={rx}
+                        ry={rx * 0.15}
                         fill="none"
-                        stroke={
-                          selected
-                            ? "rgba(103,232,249,0.5)"
-                            : "rgba(147,197,253,0.2)"
-                        }
-                        strokeWidth="0.9"
+                        stroke="rgba(252,211,77,0.18)"
+                        strokeWidth="0.6"
                       />
-                    </g>
-                  );
-                })}
+                    );
+                  })}
+                  {[0, 30, 60, 90, 120, 150].map(lon => {
+                    const rx = Math.sin((lon * Math.PI) / 180) * 90;
+                    return (
+                      <ellipse
+                        key={`lon-${lon}`}
+                        cx="100"
+                        cy="100"
+                        rx={Math.max(rx, 1)}
+                        ry={90}
+                        fill="none"
+                        stroke="rgba(252,211,77,0.14)"
+                        strokeWidth="0.6"
+                      />
+                    );
+                  })}
+                  <ellipse
+                    cx="100"
+                    cy="100"
+                    rx={90}
+                    ry={13}
+                    fill="none"
+                    stroke="rgba(245,158,11,0.3)"
+                    strokeWidth="0.8"
+                  />
+                  {locations.map((location, index) => {
+                    const coords = [
+                      [116, 60],
+                      [128, 76],
+                      [140, 94],
+                      [134, 118],
+                    ][index] ?? [120, 84];
+                    const selected = location.id === selectedLocationId;
+
+                    return (
+                      <g key={location.id}>
+                        {selected && (
+                          <circle
+                            cx={coords[0]}
+                            cy={coords[1]}
+                            r={10}
+                            fill="none"
+                            stroke="rgba(245,158,11,0.25)"
+                            strokeWidth="0.6"
+                          />
+                        )}
+                        <circle
+                          cx={coords[0]}
+                          cy={coords[1]}
+                          r={selected ? 3 : 1.8}
+                          fill={selected ? "#f59e0b" : "#fcd34d"}
+                          opacity={selected ? 1 : 0.6}
+                        />
+                        {selected && (
+                          <circle
+                            cx={coords[0]}
+                            cy={coords[1]}
+                            r={3}
+                            fill="none"
+                            stroke="rgba(245,158,11,0.6)"
+                            strokeWidth="0.8"
+                            style={{
+                              animation: "noodle-pulse 2s ease-in-out infinite",
+                            }}
+                          />
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
               </svg>
-              <div className="absolute inset-y-0 left-[14%] w-[28%] rounded-full bg-gradient-to-r from-transparent via-cyan-100/20 to-transparent blur-md" />
+              <div className="absolute inset-y-0 left-[14%] w-[20%] rounded-full bg-gradient-to-r from-transparent via-amber-100/8 to-transparent blur-md" />
             </div>
           </div>
 
@@ -354,15 +376,15 @@ function NoodleViz({
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[28px] border border-cyan-400/20 bg-white/[0.03] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/80">
+          <div className="rounded-[28px] border border-amber-400/20 bg-white/[0.03] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-amber-300/80">
               {isZh ? "今日可吃" : "Today capacity"}
             </p>
             <div className="mt-4 text-[2.2rem] font-semibold leading-none tracking-tight text-white sm:text-[2.8rem]">
               {isZh ? formatBowlsZh(bowlsToday) : formatBowlsEn(bowlsToday)}
             </div>
             <div className="mt-3 flex items-center gap-2 text-sm">
-              <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100">
+              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">
                 {selectedLocation?.name}
               </span>
               <span
@@ -411,8 +433,8 @@ function NoodleViz({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-fuchsia-400/15 bg-fuchsia-500/5 p-4 shadow-[0_0_40px_rgba(217,70,239,0.08)]">
-            <p className="text-xs uppercase tracking-[0.24em] text-fuchsia-200/80">
+          <div className="rounded-2xl border border-amber-400/15 bg-amber-500/5 p-4 shadow-[0_0_40px_rgba(245,158,11,0.06)]">
+            <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">
               {isZh ? "通胀扰动模拟" : "Inflation stress"}
             </p>
             <p className="mt-2 text-xl font-semibold text-white">
@@ -623,49 +645,11 @@ export default function PortfolioSummary({ data, onCategoryClick }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Type-based allocation summary (clickable → scroll to holdings tab) */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {Object.entries(typeAllocation)
-              .sort(([a], [b]) => getTypeOrder(a) - getTypeOrder(b))
-              .map(([type, value]) => {
-                const displayValue =
-                  currencyDisplay === "CNY" ? value * exchangeRate : value;
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => onCategoryClick?.(type)}
-                    className="text-center rounded-lg border border-transparent p-3 transition-colors hover:bg-muted/50 hover:border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <div
-                      className="w-3 h-3 rounded-full mx-auto mb-2"
-                      style={{
-                        backgroundColor: getColorByType(type),
-                      }}
-                    />
-                    <p className="text-xs font-medium text-muted-foreground capitalize">
-                      {isZh ? (TYPE_LABELS_ZH[type] ?? type) : type}
-                    </p>
-                    <p className="text-lg font-semibold text-foreground">
-                      {formatPercent(value / data.totalValueUSD)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {currencyDisplay === "CNY" ? "¥" : "$"}
-                      {displayValue.toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </p>
-                  </button>
-                );
-              })}
-          </div>
-
           {/* Pie chart: one slice per type (clickable) */}
           {pieChartData.length > 0 && (
-            <div>
+            <div className="mb-6">
               <ResponsiveContainer width="100%" height={250}>
-                <PieChart margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+                <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                   <Pie
                     data={pieChartData}
                     cx="50%"
@@ -703,17 +687,48 @@ export default function PortfolioSummary({ data, onCategoryClick }: Props) {
                     }}
                     labelFormatter={label => `${label}`}
                   />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    formatter={value => (
-                      <span className="text-xs">{value}</span>
-                    )}
-                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           )}
+
+          {/* Type-based allocation summary (clickable → scroll to holdings tab) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {Object.entries(typeAllocation)
+              .sort(([a], [b]) => getTypeOrder(a) - getTypeOrder(b))
+              .map(([type, value]) => {
+                const displayValue =
+                  currencyDisplay === "CNY" ? value * exchangeRate : value;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onCategoryClick?.(type)}
+                    className="text-center rounded-lg border border-transparent p-3 transition-colors hover:bg-muted/50 hover:border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full mx-auto mb-2"
+                      style={{
+                        backgroundColor: getColorByType(type),
+                      }}
+                    />
+                    <p className="text-xs font-medium text-muted-foreground capitalize">
+                      {isZh ? (TYPE_LABELS_ZH[type] ?? type) : type}
+                    </p>
+                    <p className="text-lg font-semibold text-foreground">
+                      {formatPercent(value / data.totalValueUSD)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {currencyDisplay === "CNY" ? "¥" : "$"}
+                      {displayValue.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </button>
+                );
+              })}
+          </div>
         </CardContent>
       </Card>
     </div>

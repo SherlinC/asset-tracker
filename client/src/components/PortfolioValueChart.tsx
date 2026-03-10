@@ -283,16 +283,7 @@ export default function PortfolioValueChart({
 
   return (
     <div className="space-y-6">
-      {/* Chart Description */}
-      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <p className="text-sm text-blue-900 dark:text-blue-100">
-          <strong>图表说明：</strong>{" "}
-          此图表展示您的投资组合总价值随时间的变化趋势。每一天只展示当天最后一次记录下来的资产总和，
-          因此同一天新增多个资产时，图上会显示当天新增后的总资产值。点击图表上的数据点可查看该日期的详细信息。
-          下方表格中的资产与此图表联动 -
-          当您修改持仓时，下次数据记录将反映这些变化。
-        </p>
-      </div>
+
 
       {/* Selected Data Point Info */}
       {selectedPointInfo && (
@@ -526,14 +517,7 @@ export default function PortfolioValueChart({
         </CardContent>
       </Card>
 
-      {/* Data Recording Note */}
-      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          <strong>数据记录说明：</strong>{" "}
-          系统会自动记录您的投资组合价值。每次添加、修改或删除持仓时，下次数据记录将反映最新的投资组合价值。
-          建议定期查看此图表以监控您的投资表现。
-        </p>
-      </div>
+
     </div>
   );
 }
