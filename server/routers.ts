@@ -6,6 +6,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { fetchAssetPriceWithFallback } from "./assetPricing";
 import * as db from "./db";
 import { searchEastMoneyFunds } from "./eastMoneyFund";
 import { searchEastMoneyStocks } from "./eastMoneyStock";
@@ -35,7 +36,11 @@ async function priceUserHoldings(
       const quantity = parseFloat(h.holding.quantity);
 
       try {
-        const priceData = await priceService.fetchAssetPrice(symbol, type);
+        const priceData = await fetchAssetPriceWithFallback(
+          h.asset.id,
+          symbol,
+          type
+        );
         const priceUSD = priceData.priceUSD;
         const valueUSD = quantity * priceUSD;
 
@@ -276,12 +281,17 @@ export const appRouter = router({
     fetchSingle: protectedProcedure
       .input(
         z.object({
+          assetId: z.number().optional(),
           symbol: z.string(),
           type: z.enum(["currency", "crypto", "stock", "fund"]),
         })
       )
       .query(async ({ input }) => {
-        return priceService.fetchAssetPrice(input.symbol, input.type);
+        return fetchAssetPriceWithFallback(
+          input.assetId,
+          input.symbol,
+          input.type
+        );
       }),
 
     // Refresh all prices (placeholder)
