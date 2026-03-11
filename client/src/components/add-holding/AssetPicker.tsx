@@ -1,0 +1,234 @@
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { getLocalizedAssetName } from "@/lib/assetLocalization";
+import { cn } from "@/lib/utils";
+
+import type {
+  AssetCategory,
+  AssetOption,
+  FundSubCategory,
+  StockSubCategory,
+} from "./catalog";
+
+type Props = {
+  isZh: boolean;
+  selectedCategory: AssetCategory;
+  selectedStockSubCategory: StockSubCategory;
+  selectedFundSubCategory: FundSubCategory;
+  assetComboboxOpen: boolean;
+  setAssetComboboxOpen: (open: boolean) => void;
+  selectedAsset: AssetOption | null;
+  selectedAssetSymbol: string;
+  assetsInCategory: AssetOption[];
+  onAssetChange: (symbol: string) => void;
+  fundSearchInput: string;
+  internationalFundSearchInput: string;
+  stockSearchInput: string;
+  onInputChange: (value: string) => void;
+  isLoading: boolean;
+  chinaFundQuery: string;
+  internationalFundQuery: string;
+  stockQuery: string;
+};
+
+function usesRemoteSearch(
+  selectedCategory: AssetCategory,
+  selectedFundSubCategory: FundSubCategory,
+  selectedStockSubCategory: StockSubCategory
+) {
+  return (
+    (selectedCategory === "fund" &&
+      (selectedFundSubCategory === "china_fund" ||
+        selectedFundSubCategory === "international_fund")) ||
+    (selectedCategory === "stock" && selectedStockSubCategory === "cn_stock")
+  );
+}
+
+export function AssetPicker({
+  isZh,
+  selectedCategory,
+  selectedStockSubCategory,
+  selectedFundSubCategory,
+  assetComboboxOpen,
+  setAssetComboboxOpen,
+  selectedAsset,
+  selectedAssetSymbol,
+  assetsInCategory,
+  onAssetChange,
+  fundSearchInput,
+  internationalFundSearchInput,
+  stockSearchInput,
+  onInputChange,
+  isLoading,
+  chinaFundQuery,
+  internationalFundQuery,
+  stockQuery,
+}: Props) {
+  const remoteSearch = usesRemoteSearch(
+    selectedCategory,
+    selectedFundSubCategory,
+    selectedStockSubCategory
+  );
+
+  const searchValue =
+    selectedCategory === "fund"
+      ? selectedFundSubCategory === "china_fund"
+        ? fundSearchInput
+        : internationalFundSearchInput
+      : stockSearchInput;
+
+  const placeholder =
+    selectedCategory === "fund"
+      ? selectedFundSubCategory === "china_fund"
+        ? "输入基金代码或名称搜索..."
+        : "输入国际基金名称、ETF 代码或 ISIN 搜索..."
+      : "输入股票代码、名称或拼音搜索...";
+
+  const emptyText =
+    selectedCategory === "fund" && selectedFundSubCategory === "china_fund"
+      ? "未找到基金，请换关键词"
+      : selectedCategory === "fund" &&
+          selectedFundSubCategory === "international_fund"
+        ? internationalFundQuery.trim()
+          ? "未找到国际基金，请换名称、ETF 代码或 ISIN"
+          : "请输入国际基金名称、ETF 代码或 ISIN 搜索"
+        : selectedCategory === "stock" &&
+            selectedStockSubCategory === "cn_stock"
+          ? stockQuery.trim()
+            ? "未找到A股，请换代码、名称或拼音"
+            : "请输入股票代码、名称或拼音搜索A股"
+          : "No asset found.";
+
+  return (
+    <div className="space-y-2 min-w-0">
+      <Label htmlFor="asset">Asset</Label>
+      <Popover open={assetComboboxOpen} onOpenChange={setAssetComboboxOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id="asset"
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={assetComboboxOpen}
+            disabled={!selectedCategory}
+            className={cn(
+              "w-full min-w-0 justify-between font-normal",
+              !selectedAsset && "text-muted-foreground"
+            )}
+          >
+            {selectedAsset ? (
+              <span className="min-w-0 truncate">
+                <span className="font-medium">
+                  {selectedAsset.displaySymbol ?? selectedAsset.symbol}
+                </span>
+                <span className="text-muted-foreground ml-2">
+                  {getLocalizedAssetName(
+                    selectedAsset.symbol,
+                    selectedAsset.name,
+                    isZh
+                  )}
+                </span>
+              </span>
+            ) : (
+              <span className="truncate">
+                {selectedCategory
+                  ? "Search by symbol or name..."
+                  : "Select type first"}
+              </span>
+            )}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0"
+          align="start"
+        >
+          <Command shouldFilter={!remoteSearch}>
+            {remoteSearch ? (
+              <div className="flex items-center border-b px-2">
+                <Input
+                  value={searchValue}
+                  onChange={e => onInputChange(e.target.value)}
+                  placeholder={placeholder}
+                  className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              </div>
+            ) : (
+              <CommandInput placeholder="Type symbol or name..." />
+            )}
+            <CommandList>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-4 text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {selectedCategory === "fund"
+                    ? selectedFundSubCategory === "china_fund"
+                      ? "加载基金列表..."
+                      : "搜索国际基金中..."
+                    : "搜索A股中..."}
+                </div>
+              ) : (
+                <>
+                  <CommandEmpty>{emptyText}</CommandEmpty>
+                  <CommandGroup>
+                    {assetsInCategory.map(asset => (
+                      <CommandItem
+                        key={asset.symbol}
+                        value={`${asset.symbol} ${asset.name} ${(asset.keywords ?? []).join(" ")}`}
+                        onSelect={() => onAssetChange(asset.symbol)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedAssetSymbol === asset.symbol
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        <span className="font-medium">
+                          {asset.displaySymbol ?? asset.symbol}
+                        </span>
+                        <span className="text-muted-foreground ml-2">
+                          {getLocalizedAssetName(
+                            asset.symbol,
+                            asset.name,
+                            isZh
+                          )}
+                        </span>
+                        {asset.issuer ? (
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            {asset.issuer}
+                          </span>
+                        ) : null}
+                        {asset.market ? (
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            {asset.market}
+                          </span>
+                        ) : null}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
