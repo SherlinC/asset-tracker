@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { fetchAssetPriceWithFallback } from "./assetPricing";
+import * as db from "./db";
+import * as priceService from "./priceService";
+
 vi.mock("./db", () => ({
   getPriceByAssetId: vi.fn(),
   upsertPrice: vi.fn(),
@@ -9,10 +13,6 @@ vi.mock("./priceService", () => ({
   fetchAssetPrice: vi.fn(),
   fetchExchangeRates: vi.fn(),
 }));
-
-import * as db from "./db";
-import * as priceService from "./priceService";
-import { fetchAssetPriceWithFallback } from "./assetPricing";
 
 describe("fetchAssetPriceWithFallback", () => {
   afterEach(() => {
