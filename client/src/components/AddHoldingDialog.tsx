@@ -264,8 +264,6 @@ export default function AddHoldingDialog({
   const [currencyDisplay, setCurrencyDisplay] = useState<"USD" | "CNY">("USD");
   const [fundSearchInput, setFundSearchInput] = useState("");
   const [fundSearchQuery, setFundSearchQuery] = useState("");
-  const [usEtfSearchInput, setUsEtfSearchInput] = useState("");
-  const [usEtfSearchQuery, setUsEtfSearchQuery] = useState("");
   const [internationalFundSearchInput, setInternationalFundSearchInput] =
     useState("");
   const [internationalFundSearchQuery, setInternationalFundSearchQuery] =
@@ -282,12 +280,12 @@ export default function AddHoldingDialog({
     }
   );
   const usEtfSearch = trpc.fund.usEtfSearch.useQuery(
-    { q: usEtfSearchQuery, limit: 50 },
+    { q: internationalFundSearchQuery, limit: 50 },
     {
       enabled:
         selectedCategory === "fund" &&
         selectedFundSubCategory === "international_fund" &&
-        usEtfSearchQuery.trim().length > 0,
+        internationalFundSearchQuery.trim().length > 0,
       staleTime: 60 * 1000,
     }
   );
@@ -334,18 +332,6 @@ export default function AddHoldingDialog({
     const t = setTimeout(() => setStockSearchQuery(stockSearchInput), 400);
     return () => clearTimeout(t);
   }, [selectedCategory, selectedStockSubCategory, stockSearchInput]);
-
-  useEffect(() => {
-    if (
-      selectedCategory !== "fund" ||
-      selectedFundSubCategory !== "international_fund"
-    ) {
-      return;
-    }
-
-    const t = setTimeout(() => setUsEtfSearchQuery(usEtfSearchInput), 400);
-    return () => clearTimeout(t);
-  }, [selectedCategory, selectedFundSubCategory, usEtfSearchInput]);
 
   useEffect(() => {
     if (
@@ -416,8 +402,6 @@ export default function AddHoldingDialog({
     setSelectedFundSubCategory("china_fund");
     setFundSearchInput("");
     setFundSearchQuery("");
-    setUsEtfSearchInput("");
-    setUsEtfSearchQuery("");
     setInternationalFundSearchInput("");
     setInternationalFundSearchQuery("");
     setStockSearchInput("");
@@ -431,8 +415,6 @@ export default function AddHoldingDialog({
     if (cat !== "fund") {
       setFundSearchInput("");
       setFundSearchQuery("");
-      setUsEtfSearchInput("");
-      setUsEtfSearchQuery("");
       setInternationalFundSearchInput("");
       setInternationalFundSearchQuery("");
     }
@@ -652,8 +634,6 @@ export default function AddHoldingDialog({
                   setSelectedAssetSymbol("");
                   setFundSearchInput("");
                   setFundSearchQuery("");
-                  setUsEtfSearchInput("");
-                  setUsEtfSearchQuery("");
                   setInternationalFundSearchInput("");
                   setInternationalFundSearchQuery("");
                 }}
