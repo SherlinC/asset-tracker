@@ -4,6 +4,13 @@
  */
 
 import { ENV } from "./_core/env";
+import {
+  convertCnyPriceToUsdAndCny,
+  convertForeignPriceToUsdAndCny,
+  getFirstSuccessfulFundQuote,
+  getUsdToCnyRate,
+  type InternationalFundQuote,
+} from "./internationalFundUtils";
 
 // Type definitions
 export interface ExchangeRateData {
@@ -566,37 +573,9 @@ type MorningstarFundQuoteResponse = {
   currency?: string;
 };
 
-function convertForeignPriceToUsdAndCny(
-  price: number,
-  currency: string,
-  exchangeRates: Record<string, number>
-) {
-  const cur = currency || "USD";
-  const usdToCny = exchangeRates.USD || 7.2;
-  const cnyPerUnit =
-    cur === "USD"
-      ? usdToCny
-      : cur === "CNY"
-        ? 1
-        : (exchangeRates[cur] as number | undefined);
-  const priceUSD =
-    cur === "USD"
-      ? price
-      : cur === "CNY"
-        ? price / usdToCny
-        : cnyPerUnit
-          ? (price * cnyPerUnit) / usdToCny
-          : price;
-
-  return {
-    priceUSD,
-    priceCNY: priceUSD * usdToCny,
-  };
-}
-
 async function fetchInternationalFundPriceFromEodhd(
   symbol: string
-): Promise<{ price: number; changePercent: number; currency: string } | null> {
+): Promise<InternationalFundQuote | null> {
   if (!ENV.eodhdApiKey || !symbol.includes(".")) {
     return null;
   }
@@ -669,7 +648,7 @@ async function fetchInternationalFundPriceFromEodhd(
 
 async function fetchInternationalFundPriceFromMorningstar(
   symbol: string
-): Promise<{ price: number; changePercent: number; currency: string } | null> {
+): Promise<InternationalFundQuote | null> {
   if (!symbol.includes(".")) {
     return null;
   }
@@ -750,7 +729,7 @@ async function fetchInternationalFundPriceFromMorningstar(
 
 async function fetchInternationalFundPriceFromYahoo(
   symbol: string
-): Promise<{ price: number; changePercent: number; currency: string } | null> {
+): Promise<InternationalFundQuote | null> {
   const normalized = symbol.trim().toUpperCase();
   if (
     !normalized ||
@@ -897,8 +876,12 @@ export async function fetchAssetPrice(
 ): Promise<{ priceUSD: number; priceCNY: number; change24h: number }> {
   try {
     if (type === "fund") {
-      const internationalFundData =
-        await fetchInternationalFundPriceFromEodhd(symbol);
+      const internationalFundData = await getFirstSuccessfulFundQuote([
+        () => fetchInternationalFundPriceFromEodhd(symbol),
+        () => fetchInternationalFundPriceFromMorningstar(symbol),
+        () => fetchInternationalFundPriceFromYahoo(symbol),
+      ]);
+
       if (internationalFundData) {
         const exchangeRates = await fetchExchangeRates();
         const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
@@ -914,48 +897,16 @@ export async function fetchAssetPrice(
         };
       }
 
-      const morningstarFundData =
-        await fetchInternationalFundPriceFromMorningstar(symbol);
-      if (morningstarFundData) {
-        const exchangeRates = await fetchExchangeRates();
-        const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
-          morningstarFundData.price,
-          morningstarFundData.currency,
-          exchangeRates
-        );
-
-        return {
-          priceUSD,
-          priceCNY,
-          change24h: morningstarFundData.changePercent,
-        };
-      }
-
-      const yahooFundData = await fetchInternationalFundPriceFromYahoo(symbol);
-      if (yahooFundData) {
-        const exchangeRates = await fetchExchangeRates();
-        const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
-          yahooFundData.price,
-          yahooFundData.currency,
-          exchangeRates
-        );
-
-        return {
-          priceUSD,
-          priceCNY,
-          change24h: yahooFundData.changePercent,
-        };
-      }
-
       const fundData =
         (await fetchFundPriceFromEastMoney(symbol)) ??
         (await fetchFundPriceFromEastMoneyEtfQuote(symbol)) ??
         (await fetchFundLatestNavFromEastMoney(symbol));
       if (fundData) {
         const exchangeRates = await fetchExchangeRates();
-        const usdPerCny = exchangeRates.USD || 7.2; // 1 USD = 7.2 CNY
-        const priceCNY = fundData.priceCNY;
-        const priceUSD = priceCNY / usdPerCny;
+        const { priceUSD, priceCNY } = convertCnyPriceToUsdAndCny(
+          fundData.priceCNY,
+          exchangeRates
+        );
         return {
           priceUSD,
           priceCNY,
@@ -967,7 +918,7 @@ export async function fetchAssetPrice(
       if (prices[symbol]) {
         const exchangeRates = await fetchExchangeRates();
         const priceUSD = prices[symbol].current_price;
-        const priceCNY = priceUSD * (exchangeRates.USD || 7.2);
+        const priceCNY = priceUSD * getUsdToCnyRate(exchangeRates);
         console.log(
           `[fetchAssetPrice] ${symbol}: $${priceUSD.toFixed(2)} / ¥${priceCNY.toFixed(2)}`
         );
@@ -979,7 +930,7 @@ export async function fetchAssetPrice(
       }
     } else if (type === "currency") {
       const exchangeRates = await fetchExchangeRates();
-      const usdToCny = exchangeRates.USD || 7.2;
+      const usdToCny = getUsdToCnyRate(exchangeRates);
       // All rates are "CNY per 1 unit of currency"
       const cnyPerUnit =
         symbol === "USD"
@@ -1001,19 +952,13 @@ export async function fetchAssetPrice(
       if (prices[symbol]) {
         const exchangeRates = await fetchExchangeRates();
         const q = prices[symbol];
-        const cur = q.currency ?? "USD";
-        const cnyPerUnit =
-          exchangeRates[cur] ?? (cur === "USD" ? exchangeRates.USD! : 0);
-        const usdToCny = exchangeRates.USD || 7.2;
-        const priceUSD =
-          cur === "USD"
-            ? q.price
-            : cnyPerUnit
-              ? (q.price * cnyPerUnit) / usdToCny
-              : q.price;
-        const priceCNY = priceUSD * usdToCny;
+        const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
+          q.price,
+          q.currency ?? "USD",
+          exchangeRates
+        );
         console.log(
-          `[fetchAssetPrice] stock ${symbol}: $${priceUSD.toFixed(2)} USD / ¥${priceCNY.toFixed(2)} CNY (raw: ${q.price} ${cur})`
+          `[fetchAssetPrice] stock ${symbol}: $${priceUSD.toFixed(2)} USD / ¥${priceCNY.toFixed(2)} CNY (raw: ${q.price} ${q.currency ?? "USD"})`
         );
         return {
           priceUSD,
