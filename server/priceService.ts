@@ -748,6 +748,36 @@ async function fetchInternationalFundPriceFromMorningstar(
   }
 }
 
+async function fetchInternationalFundPriceFromYahoo(
+  symbol: string
+): Promise<{ price: number; changePercent: number; currency: string } | null> {
+  const normalized = symbol.trim().toUpperCase();
+  if (
+    !normalized ||
+    (!normalized.includes(".") && !normalized.startsWith("0P"))
+  ) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const quote = await fetchOneSymbolFromYahoo(symbol, controller.signal);
+    if (!quote) {
+      return null;
+    }
+
+    return {
+      price: quote.price,
+      changePercent: quote.changePercent,
+      currency: quote.currency ?? "USD",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function getCnFundQuoteSecids(code: string) {
   if (!/^\d{6}$/.test(code)) {
     return [] as string[];
@@ -898,6 +928,22 @@ export async function fetchAssetPrice(
           priceUSD,
           priceCNY,
           change24h: morningstarFundData.changePercent,
+        };
+      }
+
+      const yahooFundData = await fetchInternationalFundPriceFromYahoo(symbol);
+      if (yahooFundData) {
+        const exchangeRates = await fetchExchangeRates();
+        const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
+          yahooFundData.price,
+          yahooFundData.currency,
+          exchangeRates
+        );
+
+        return {
+          priceUSD,
+          priceCNY,
+          change24h: yahooFundData.changePercent,
         };
       }
 

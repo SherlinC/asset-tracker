@@ -44,4 +44,59 @@ describe("searchInternationalFunds", () => {
       },
     ]);
   });
+
+  it("falls back to Yahoo mutual fund search when EODHD search fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.startsWith("https://eodhd.com/api/search/fidelity")) {
+          return {
+            ok: false,
+            status: 402,
+          };
+        }
+
+        if (
+          url.startsWith("https://query2.finance.yahoo.com/v1/finance/search")
+        ) {
+          return {
+            ok: true,
+            json: async () => ({
+              quotes: [
+                {
+                  symbol: "0P00016JWY.HK",
+                  quoteType: "MUTUALFUND",
+                  longname: "Fidelity Asian High Yield Y-MD-HKD",
+                  exchDisp: "Hong Kong",
+                },
+                {
+                  symbol: "AAPL",
+                  quoteType: "EQUITY",
+                  longname: "Apple Inc.",
+                  exchDisp: "NASDAQ",
+                },
+              ],
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      })
+    );
+
+    const result = await searchInternationalFunds("fidelity", 10);
+
+    expect(result).toEqual([
+      {
+        symbol: "0P00016JWY.HK",
+        isin: "0P00016JWY.HK",
+        name: "Fidelity Asian High Yield Y-MD-HKD",
+        market: "Hong Kong",
+        currency: "USD",
+        externalSymbol: "0P00016JWY.HK",
+      },
+    ]);
+  });
 });

@@ -14,6 +14,17 @@ type EodhdIdMappingResult = {
   isin?: string;
 };
 
+type YahooSearchResponse = {
+  quotes?: Array<{
+    symbol?: string;
+    quoteType?: string;
+    longname?: string;
+    shortname?: string;
+    exchDisp?: string;
+    exchange?: string;
+  }>;
+};
+
 export type InternationalFundSearchResult = {
   symbol: string;
   name: string;
@@ -25,6 +36,27 @@ export type InternationalFundSearchResult = {
 
 function isIsin(query: string) {
   return /^[A-Z]{2}[A-Z0-9]{10}$/.test(query.trim().toUpperCase());
+}
+
+function normalizeYahooFundResult(
+  item: NonNullable<YahooSearchResponse["quotes"]>[number],
+  query: string
+): InternationalFundSearchResult | null {
+  const symbol = item.symbol?.trim();
+  if (!symbol || item.quoteType !== "MUTUALFUND") {
+    return null;
+  }
+
+  const normalizedQuery = query.trim().toUpperCase();
+
+  return {
+    symbol,
+    isin: isIsin(normalizedQuery) ? normalizedQuery : symbol,
+    name: item.longname?.trim() || item.shortname?.trim() || symbol,
+    market: item.exchDisp?.trim() || item.exchange?.trim() || "Yahoo Finance",
+    currency: "USD",
+    externalSymbol: symbol,
+  };
 }
 
 function normalizeFundResult(
@@ -102,6 +134,31 @@ async function searchByIsin(
     .filter(item => item.symbol);
 }
 
+async function searchByYahooQuery(
+  query: string,
+  limit: number
+): Promise<InternationalFundSearchResult[]> {
+  const url = new URL("https://query2.finance.yahoo.com/v1/finance/search");
+  url.searchParams.set("q", query.trim());
+
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/json,text/plain,*/*",
+      "User-Agent": "Mozilla/5.0",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Yahoo search HTTP ${res.status}`);
+  }
+
+  const data = (await res.json()) as YahooSearchResponse;
+  return (data.quotes ?? [])
+    .map(item => normalizeYahooFundResult(item, query))
+    .filter((item): item is InternationalFundSearchResult => item !== null)
+    .slice(0, limit);
+}
+
 export async function searchInternationalFunds(
   q: string,
   limit: number = 20
@@ -121,6 +178,11 @@ export async function searchInternationalFunds(
     ).slice(0, limit);
   } catch (err) {
     console.warn("[EODHD Fund] Search failed:", (err as Error).message);
-    return [];
+    try {
+      return await searchByYahooQuery(keyword, limit);
+    } catch (yahooErr) {
+      console.warn("[Yahoo Fund] Search failed:", (yahooErr as Error).message);
+      return [];
+    }
   }
 }

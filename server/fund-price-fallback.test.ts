@@ -207,4 +207,94 @@ describe("fund price fallback", () => {
       process.env.EODHD_API_KEY = originalApiKey;
     }
   });
+
+  it("falls back to Yahoo chart pricing for Yahoo mutual fund symbols", async () => {
+    const originalApiKey = process.env.EODHD_API_KEY;
+    process.env.EODHD_API_KEY = "test-key";
+
+    vi.resetModules();
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("https://eodhd.com/api/search/0P00016JWY")) {
+        return {
+          ok: false,
+          json: async () => ({}),
+          text: async () => "limit exceeded",
+        };
+      }
+
+      if (
+        url.startsWith(
+          "https://query1.finance.yahoo.com/v8/finance/chart/0P00016JWY.HK"
+        ) ||
+        url.startsWith(
+          "https://query2.finance.yahoo.com/v8/finance/chart/0P00016JWY.HK"
+        )
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            chart: {
+              result: [
+                {
+                  meta: {
+                    regularMarketPrice: 6.136,
+                    chartPreviousClose: 6.152,
+                    currency: "HKD",
+                  },
+                },
+              ],
+            },
+          }),
+        };
+      }
+
+      if (url === "https://api.exchangerate-api.com/v4/latest/CNY") {
+        return {
+          ok: true,
+          json: async () => ({
+            rates: {
+              USD: 0.1388888889,
+              HKD: 1.0869565217,
+              EUR: 0.1282051282,
+              JPY: 20.8333333333,
+            },
+          }),
+        };
+      }
+
+      if (
+        url.startsWith(
+          "https://global.morningstar.com/api/v1/en-gb/tools/screener/_data"
+        )
+      ) {
+        return {
+          ok: true,
+          json: async () => ({ results: [] }),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { fetchAssetPrice: fetchInternationalAssetPrice } = await import(
+      "./priceService"
+    );
+    const result = await fetchInternationalAssetPrice("0P00016JWY.HK", "fund");
+
+    const expectedUsd = (6.136 * 0.92) / 7.2;
+    expect(result.priceUSD).toBeCloseTo(expectedUsd, 4);
+    expect(result.priceCNY).toBeCloseTo(6.136 * 0.92, 4);
+    expect(result.change24h).toBeCloseTo(((6.136 - 6.152) / 6.152) * 100, 4);
+
+    if (originalApiKey === undefined) {
+      delete process.env.EODHD_API_KEY;
+    } else {
+      process.env.EODHD_API_KEY = originalApiKey;
+    }
+  });
 });
