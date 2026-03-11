@@ -30,6 +30,76 @@ type YahooSearchResponse = {
   }>;
 };
 
+const KNOWN_INTERNATIONAL_FUNDS: InternationalFundSearchResult[] = [
+  {
+    symbol: "LU0124384867.EUFUND",
+    isin: "LU0124384867",
+    name: "BlackRock Global Funds - Sustainable Energy Fund A2",
+    market: "EUFUND",
+    currency: "USD",
+    externalSymbol: "LU0124384867",
+  },
+  {
+    symbol: "LU0157308031.EUFUND",
+    isin: "LU0157308031",
+    name: "AB - American Income Portfolio AT Inc",
+    market: "EUFUND",
+    currency: "USD",
+    externalSymbol: "LU0157308031",
+  },
+  {
+    symbol: "LU0205439572.EUFUND",
+    isin: "LU0205439572",
+    name: "Fidelity Funds - Asian High Yield Fund A USD",
+    market: "EUFUND",
+    currency: "USD",
+    externalSymbol: "LU0205439572",
+  },
+  {
+    symbol: "LU0266512127.EUFUND",
+    isin: "LU0266512127",
+    name: "JPMorgan Funds - Global Natural Resources Fund A USD",
+    market: "EUFUND",
+    currency: "USD",
+    externalSymbol: "LU0266512127",
+  },
+  {
+    symbol: "LU0633140727.EUFUND",
+    isin: "LU0633140727",
+    name: "AB - Emerging Markets Multi-Asset Portfolio AD USD Inc",
+    market: "EUFUND",
+    currency: "USD",
+    externalSymbol: "LU0633140727",
+  },
+  {
+    symbol: "LU1128926489.EUFUND",
+    isin: "LU1128926489",
+    name: "JPMorgan Funds - Income Fund A Mth USD",
+    market: "EUFUND",
+    currency: "USD",
+    externalSymbol: "LU1128926489",
+  },
+];
+
+function searchKnownFunds(
+  query: string,
+  limit: number
+): InternationalFundSearchResult[] {
+  const keyword = query.trim().toLowerCase();
+  if (!keyword) {
+    return [];
+  }
+
+  return KNOWN_INTERNATIONAL_FUNDS.filter(fund => {
+    const haystack = [fund.symbol, fund.isin, fund.name, fund.externalSymbol]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(keyword);
+  }).slice(0, limit);
+}
+
 function normalizeYahooFundResult(
   item: NonNullable<YahooSearchResponse["quotes"]>[number],
   query: string
@@ -156,23 +226,37 @@ export async function searchInternationalFunds(
   limit: number = 20
 ): Promise<InternationalFundSearchResult[]> {
   const keyword = q.trim();
+  const knownMatches = searchKnownFunds(keyword, limit);
 
-  if (!keyword || !ENV.eodhdApiKey) {
+  if (!keyword) {
     return [];
   }
 
-  try {
-    const exact = isIsin(keyword) ? await searchByIsin(keyword) : [];
-    const fuzzy = await searchByQuery(keyword, limit);
-
-    return dedupeInternationalFundResults([...exact, ...fuzzy], limit);
-  } catch (err) {
-    console.warn("[EODHD Fund] Search failed:", (err as Error).message);
+  if (ENV.eodhdApiKey) {
     try {
-      return await searchByYahooQuery(keyword, limit);
-    } catch (yahooErr) {
-      console.warn("[Yahoo Fund] Search failed:", (yahooErr as Error).message);
-      return [];
+      const exact = isIsin(keyword) ? await searchByIsin(keyword) : [];
+      const fuzzy = await searchByQuery(keyword, limit);
+      const results = dedupeInternationalFundResults(
+        [...knownMatches, ...exact, ...fuzzy],
+        limit
+      );
+
+      if (results.length > 0) {
+        return results;
+      }
+    } catch (err) {
+      console.warn("[EODHD Fund] Search failed:", (err as Error).message);
     }
+  }
+
+  try {
+    const yahooResults = await searchByYahooQuery(keyword, limit);
+    return dedupeInternationalFundResults(
+      [...knownMatches, ...yahooResults],
+      limit
+    );
+  } catch (yahooErr) {
+    console.warn("[Yahoo Fund] Search failed:", (yahooErr as Error).message);
+    return knownMatches;
   }
 }
