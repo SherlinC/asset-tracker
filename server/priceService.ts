@@ -551,6 +551,49 @@ type EodhdFundEodItem = {
   close?: number;
 };
 
+type MorningstarScreenerResponse = {
+  results?: Array<{
+    meta?: {
+      securityID?: string;
+    };
+  }>;
+};
+
+type MorningstarFundQuoteResponse = {
+  latestPrice?: number;
+  latestPriceDate?: string;
+  trailing1DayReturn?: number;
+  currency?: string;
+};
+
+function convertForeignPriceToUsdAndCny(
+  price: number,
+  currency: string,
+  exchangeRates: Record<string, number>
+) {
+  const cur = currency || "USD";
+  const usdToCny = exchangeRates.USD || 7.2;
+  const cnyPerUnit =
+    cur === "USD"
+      ? usdToCny
+      : cur === "CNY"
+        ? 1
+        : (exchangeRates[cur] as number | undefined);
+  const priceUSD =
+    cur === "USD"
+      ? price
+      : cur === "CNY"
+        ? price / usdToCny
+        : cnyPerUnit
+          ? (price * cnyPerUnit) / usdToCny
+          : price;
+
+  return {
+    priceUSD,
+    priceCNY: priceUSD * usdToCny,
+  };
+}
+
 async function fetchInternationalFundPriceFromEodhd(
   symbol: string
 ): Promise<{ price: number; changePercent: number; currency: string } | null> {
@@ -620,6 +663,87 @@ async function fetchInternationalFundPriceFromEodhd(
     };
   } catch (err) {
     console.warn("[EODHD Fund Price]", symbol, (err as Error).message);
+    return null;
+  }
+}
+
+async function fetchInternationalFundPriceFromMorningstar(
+  symbol: string
+): Promise<{ price: number; changePercent: number; currency: string } | null> {
+  if (!symbol.includes(".")) {
+    return null;
+  }
+
+  const [isin] = symbol.split(".");
+  if (!isin || !/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin.toUpperCase())) {
+    return null;
+  }
+
+  try {
+    const screenerUrl = new URL(
+      "https://global.morningstar.com/api/v1/en-gb/tools/screener/_data"
+    );
+    screenerUrl.searchParams.set("query", `_ ~= '${isin.toUpperCase()}'`);
+    screenerUrl.searchParams.set("limit", "1");
+
+    const screenerRes = await fetch(screenerUrl, {
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+
+    if (!screenerRes.ok) {
+      return null;
+    }
+
+    const screenerData =
+      (await screenerRes.json()) as MorningstarScreenerResponse;
+    const securityId = screenerData.results?.[0]?.meta?.securityID;
+
+    if (!securityId) {
+      return null;
+    }
+
+    const quoteUrl = new URL(
+      `https://api-global.morningstar.com/sal-service/v1/fund/quote/v7/${encodeURIComponent(
+        securityId
+      )}/data`
+    );
+    quoteUrl.searchParams.set("clientId", "MDC");
+    quoteUrl.searchParams.set("version", "4.71.0");
+    quoteUrl.searchParams.set("apikey", "lstzFDEOhfFNMLikKa0am9mgEKLBl49T");
+
+    const quoteRes = await fetch(quoteUrl, {
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+        Origin: "https://www.morningstar.com",
+        Referer: "https://www.morningstar.com/",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+
+    if (!quoteRes.ok) {
+      return null;
+    }
+
+    const quoteData = (await quoteRes.json()) as MorningstarFundQuoteResponse;
+    const price = quoteData.latestPrice;
+
+    if (price == null || !Number.isFinite(price) || price <= 0) {
+      return null;
+    }
+
+    return {
+      price,
+      changePercent:
+        typeof quoteData.trailing1DayReturn === "number"
+          ? quoteData.trailing1DayReturn
+          : 0,
+      currency: quoteData.currency?.trim() || "USD",
+    };
+  } catch (err) {
+    console.warn("[Morningstar Fund Price]", symbol, (err as Error).message);
     return null;
   }
 }
@@ -747,28 +871,33 @@ export async function fetchAssetPrice(
         await fetchInternationalFundPriceFromEodhd(symbol);
       if (internationalFundData) {
         const exchangeRates = await fetchExchangeRates();
-        const cur = internationalFundData.currency || "USD";
-        const usdToCny = exchangeRates.USD || 7.2;
-        const cnyPerUnit =
-          cur === "USD"
-            ? usdToCny
-            : cur === "CNY"
-              ? 1
-              : (exchangeRates[cur] as number | undefined);
-        const priceUSD =
-          cur === "USD"
-            ? internationalFundData.price
-            : cur === "CNY"
-              ? internationalFundData.price / usdToCny
-              : cnyPerUnit
-                ? (internationalFundData.price * cnyPerUnit) / usdToCny
-                : internationalFundData.price;
-        const priceCNY = priceUSD * usdToCny;
+        const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
+          internationalFundData.price,
+          internationalFundData.currency,
+          exchangeRates
+        );
 
         return {
           priceUSD,
           priceCNY,
           change24h: internationalFundData.changePercent,
+        };
+      }
+
+      const morningstarFundData =
+        await fetchInternationalFundPriceFromMorningstar(symbol);
+      if (morningstarFundData) {
+        const exchangeRates = await fetchExchangeRates();
+        const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
+          morningstarFundData.price,
+          morningstarFundData.currency,
+          exchangeRates
+        );
+
+        return {
+          priceUSD,
+          priceCNY,
+          change24h: morningstarFundData.changePercent,
         };
       }
 
