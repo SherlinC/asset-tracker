@@ -1,4 +1,12 @@
-import { Brain, Globe, LogOut, PanelLeft, Wallet } from "lucide-react";
+import {
+  Brain,
+  Globe,
+  LogOut,
+  Map,
+  PanelLeft,
+  UtensilsCrossed,
+  Wallet,
+} from "lucide-react";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -135,12 +143,20 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const menuItems =
     language === "zh"
       ? [
+          { icon: UtensilsCrossed, label: "吃山空", path: "/eat-the-mountain" },
           { icon: Wallet, label: "资产组合", path: "/dashboard" },
           { icon: Brain, label: "AI 策略", path: "/ai-strategy" },
+          { icon: Map, label: "钱包规划", path: "/wallet-planning" },
         ]
       : [
+          {
+            icon: UtensilsCrossed,
+            label: "Eat The Mountain",
+            path: "/eat-the-mountain",
+          },
           { icon: Wallet, label: "Asset Portfolio", path: "/dashboard" },
           { icon: Brain, label: "AI Strategy", path: "/ai-strategy" },
+          { icon: Map, label: "Wallet Planning", path: "/wallet-planning" },
         ];
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();

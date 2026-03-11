@@ -4,8 +4,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AssetDetail from "@/pages/AssetDetail";
 import Dashboard from "@/pages/Dashboard";
+import NoodlePage from "@/pages/NoodlePage";
 import NotFound from "@/pages/NotFound";
 import StrategyPage from "@/pages/StrategyPage";
+import WalletPlanningPage from "@/pages/WalletPlanningPage";
 
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LanguageProvider } from "./contexts/LanguageContext";
@@ -18,7 +20,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/eat-the-mountain" component={NoodlePage} />
       <Route path="/ai-strategy" component={StrategyPage} />
+      <Route path="/wallet-planning" component={WalletPlanningPage} />
       <Route path="/page2" component={StrategyPage} />
       <Route path="/asset/:id" component={AssetDetail} />
       <Route path="/404" component={NotFound} />
