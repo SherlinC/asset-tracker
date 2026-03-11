@@ -1,4 +1,9 @@
 import { ENV } from "./_core/env";
+import {
+  dedupeInternationalFundResults,
+  isIsin,
+  type InternationalFundSearchResult,
+} from "./internationalFundUtils";
 
 type EodhdSearchResult = {
   Code?: string;
@@ -24,19 +29,6 @@ type YahooSearchResponse = {
     exchange?: string;
   }>;
 };
-
-export type InternationalFundSearchResult = {
-  symbol: string;
-  name: string;
-  isin: string;
-  market: string;
-  currency: string;
-  externalSymbol?: string;
-};
-
-function isIsin(query: string) {
-  return /^[A-Z]{2}[A-Z0-9]{10}$/.test(query.trim().toUpperCase());
-}
 
 function normalizeYahooFundResult(
   item: NonNullable<YahooSearchResponse["quotes"]>[number],
@@ -173,9 +165,7 @@ export async function searchInternationalFunds(
     const exact = isIsin(keyword) ? await searchByIsin(keyword) : [];
     const fuzzy = await searchByQuery(keyword, limit);
 
-    return Array.from(
-      new Map([...exact, ...fuzzy].map(item => [item.symbol, item])).values()
-    ).slice(0, limit);
+    return dedupeInternationalFundResults([...exact, ...fuzzy], limit);
   } catch (err) {
     console.warn("[EODHD Fund] Search failed:", (err as Error).message);
     try {
