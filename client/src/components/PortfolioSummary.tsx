@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Cell,
   Legend,
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLanguage } from "@/hooks/useLanguage";
+import { getLocalizedAssetName } from "@/lib/assetLocalization";
 import { trpc } from "@/lib/trpc";
 
 interface PortfolioData {
@@ -104,6 +105,352 @@ function formatBowlsEn(bowls: number): string {
   return `${bowls.toFixed(0)} bowls`;
 }
 
+type BowlParticleKind = "dot" | "dash";
+
+type BowlParticleTarget = {
+  x: number;
+  y: number;
+  z: number;
+  size: number;
+  alpha: number;
+  color: string;
+  kind: BowlParticleKind;
+  length?: number;
+};
+
+type BowlParticleSeed = {
+  x: number;
+  y: number;
+  z: number;
+  sway: number;
+  flicker: number;
+};
+
+function easeOutCubic(value: number): number {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(start: number, end: number, amount: number): number {
+  return start + (end - start) * amount;
+}
+
+function rotateY(x: number, z: number, angle: number) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  return {
+    x: x * cos - z * sin,
+    z: z * cos + x * sin,
+  };
+}
+
+function createEllipsePoints({
+  cx,
+  cy,
+  rx,
+  ry,
+  count,
+  zScale,
+  kind = "dot",
+  color,
+  size,
+  alpha,
+  start = 0,
+  end = Math.PI * 2,
+}: {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  count: number;
+  zScale: number;
+  kind?: BowlParticleKind;
+  color: string;
+  size: number;
+  alpha: number;
+  start?: number;
+  end?: number;
+}): BowlParticleTarget[] {
+  return Array.from({ length: count }, (_, index) => {
+    const t = count === 1 ? 0 : index / (count - 1);
+    const angle = start + (end - start) * t;
+
+    return {
+      x: cx + Math.cos(angle) * rx,
+      y: cy + Math.sin(angle) * ry,
+      z: Math.sin(angle) * zScale,
+      size,
+      alpha,
+      color,
+      kind,
+      length: kind === "dash" ? 5 : undefined,
+    };
+  });
+}
+
+function createNoodleBowlTargets(selectedIndex: number): BowlParticleTarget[] {
+  const targets: BowlParticleTarget[] = [];
+
+  targets.push(
+    ...createEllipsePoints({
+      cx: 0,
+      cy: 16,
+      rx: 56,
+      ry: 14,
+      count: 44,
+      zScale: 38,
+      color: "#fcd34d",
+      size: 1.9,
+      alpha: 0.86,
+      kind: "dash",
+    })
+  );
+
+  targets.push(
+    ...createEllipsePoints({
+      cx: 0,
+      cy: 32,
+      rx: 44,
+      ry: 10,
+      count: 34,
+      zScale: 24,
+      color: "#f59e0b",
+      size: 1.5,
+      alpha: 0.4,
+    })
+  );
+
+  for (let row = 0; row < 6; row += 1) {
+    const progress = row / 5;
+    const width = lerp(44, 20, progress);
+    const height = lerp(18, 34, progress);
+    const y = lerp(30, 74, progress);
+    const start = Math.PI * 0.06;
+    const end = Math.PI * 0.94;
+
+    targets.push(
+      ...createEllipsePoints({
+        cx: 0,
+        cy: y,
+        rx: width,
+        ry: height,
+        count: 18,
+        zScale: 16 - row * 1.6,
+        color: row < 2 ? "#f59e0b" : "#d97706",
+        size: 1.4,
+        alpha: lerp(0.42, 0.18, progress),
+        start,
+        end,
+      })
+    );
+  }
+
+  for (let strand = 0; strand < 7; strand += 1) {
+    const offsetX = -30 + strand * 10;
+    const phase = strand * 0.75;
+
+    for (let step = 0; step < 13; step += 1) {
+      const t = step / 12;
+      const x = offsetX + Math.sin(t * Math.PI * 1.4 + phase) * 10;
+      const y = -10 + t * 38 + Math.cos(t * Math.PI + phase) * 3;
+      const z = Math.cos(t * Math.PI * 1.3 + phase) * 18;
+
+      targets.push({
+        x,
+        y,
+        z,
+        size: t > 0.7 ? 1.5 : 1.8,
+        alpha: 0.72,
+        color: step % 3 === 0 ? "#fde68a" : "#fcd34d",
+        kind: step % 2 === 0 ? "dash" : "dot",
+        length: 6,
+      });
+    }
+  }
+
+  for (let strand = 0; strand < 3; strand += 1) {
+    for (let step = 0; step < 12; step += 1) {
+      const t = step / 11;
+      const angle = -0.9 + strand * 0.9 + t * 0.55;
+
+      targets.push({
+        x: Math.cos(angle) * (18 + strand * 4),
+        y: -18 - t * 16,
+        z: Math.sin(angle) * 16,
+        size: 1.2,
+        alpha: lerp(0.26, 0.08, t),
+        color: "#fef3c7",
+        kind: "dot",
+      });
+    }
+  }
+
+  const orbitRadius = 74;
+  for (let index = 0; index < 4; index += 1) {
+    const angle = -0.7 + index * 0.54;
+    const active = index === selectedIndex;
+    targets.push({
+      x: Math.cos(angle) * orbitRadius,
+      y: Math.sin(angle) * 12 - 8,
+      z: Math.sin(angle) * 28,
+      size: active ? 2.8 : 1.7,
+      alpha: active ? 0.92 : 0.38,
+      color: active ? "#f59e0b" : "#fcd34d",
+      kind: "dot",
+    });
+  }
+
+  return targets;
+}
+
+function GoldNoodleParticleScene({ selectedIndex }: { selectedIndex: number }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const targets = useMemo(
+    () => createNoodleBowlTargets(selectedIndex),
+    [selectedIndex]
+  );
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const media =
+      typeof window !== "undefined"
+        ? window.matchMedia("(prefers-reduced-motion: reduce)")
+        : null;
+    const reducedMotion = media?.matches ?? false;
+    const seeds: BowlParticleSeed[] = targets.map((_, index) => {
+      const theta = (index / targets.length) * Math.PI * 2.4;
+      const radius = 84 + (index % 11) * 7;
+      const lift = -18 + (index % 9) * 7;
+
+      return {
+        x: Math.cos(theta) * radius,
+        y: Math.sin(theta * 1.35) * 22 + lift,
+        z: Math.sin(theta * 0.8) * 70,
+        sway: 0.7 + (index % 7) * 0.16,
+        flicker: index * 0.37,
+      };
+    });
+
+    let frameId = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let start = 0;
+
+    const resize = () => {
+      const bounds = canvas.getBoundingClientRect();
+      width = bounds.width;
+      height = bounds.height;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(bounds.width * dpr));
+      canvas.height = Math.max(1, Math.round(bounds.height * dpr));
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const draw = (now: number) => {
+      if (!start) start = now;
+
+      const elapsed = now - start;
+      const intro = reducedMotion ? 1 : clamp(elapsed / 1800, 0, 1);
+      const settle = easeOutCubic(intro);
+      const spin = reducedMotion ? 0.18 : elapsed * 0.00075;
+      const shimmer = elapsed * 0.0012;
+
+      context.clearRect(0, 0, width, height);
+
+      const centerX = width / 2;
+      const centerY = height / 2 + 8;
+
+      const sorted = targets
+        .map((target, index) => {
+          const rotated = rotateY(target.x, target.z, spin);
+          const seed = seeds[index];
+          const x = lerp(
+            seed.x + Math.cos(shimmer * seed.sway) * 5,
+            rotated.x,
+            settle
+          );
+          const y = lerp(
+            seed.y + Math.sin(shimmer * 0.9 + seed.flicker) * 4,
+            target.y,
+            settle
+          );
+          const z = lerp(seed.z, rotated.z, settle);
+
+          return { ...target, x, y, z, flicker: seed.flicker };
+        })
+        .sort((left, right) => left.z - right.z);
+
+      for (const particle of sorted) {
+        const perspective = 260 / (260 + particle.z + 140);
+        const flatness = 0.76 + perspective * 0.38;
+        const screenX = centerX + particle.x * perspective;
+        const screenY = centerY + particle.y * perspective * flatness;
+        const depthAlpha = clamp(0.16 + perspective * 1.08, 0, 1);
+        const glowAlpha =
+          particle.alpha *
+          depthAlpha *
+          (0.88 + Math.sin(shimmer + particle.flicker) * 0.12);
+        const size = Math.max(0.7, particle.size * perspective * 1.18);
+
+        context.strokeStyle = particle.color;
+        context.fillStyle = particle.color;
+        context.globalAlpha = glowAlpha;
+        context.shadowBlur = reducedMotion ? 0 : size * 8;
+        context.shadowColor = particle.color;
+        context.lineWidth = Math.max(0.8, size * 0.72);
+
+        if (particle.kind === "dash") {
+          context.beginPath();
+          context.moveTo(
+            screenX - (particle.length ?? 5) * 0.5 * perspective,
+            screenY
+          );
+          context.lineTo(
+            screenX + (particle.length ?? 5) * 0.5 * perspective,
+            screenY
+          );
+          context.stroke();
+        } else {
+          context.beginPath();
+          context.arc(screenX, screenY, size, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+
+      context.shadowBlur = 0;
+      context.globalAlpha = 1;
+      frameId = window.requestAnimationFrame(draw);
+    };
+
+    resize();
+    frameId = window.requestAnimationFrame(draw);
+    window.addEventListener("resize", resize);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", resize);
+    };
+  }, [targets]);
+
+  return (
+    <div className="relative h-full w-full">
+      <canvas ref={canvasRef} className="h-full w-full" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(251,191,36,0.12),transparent_28%),radial-gradient(circle_at_50%_65%,rgba(245,158,11,0.08),transparent_34%)]" />
+      <div className="pointer-events-none absolute inset-y-[18%] left-1/2 w-[44%] -translate-x-1/2 rounded-full border border-amber-200/10 blur-sm" />
+    </div>
+  );
+}
+
 function NoodleViz({
   isZh,
   locations,
@@ -118,6 +465,10 @@ function NoodleViz({
   const selectedLocation =
     locations.find(location => location.id === selectedLocationId) ??
     locations[0];
+  const selectedLocationIndex = Math.max(
+    locations.findIndex(location => location.id === selectedLocationId),
+    0
+  );
   const bowlsPerWeek = bowlsToday / 7;
   const yearsAtThreeBowls = bowlsToday / 3 / 365;
   const bowlsInflationAdjusted = bowlsToday / Math.pow(1.03, 10);
@@ -149,10 +500,7 @@ function NoodleViz({
   return (
     <div className="mt-4 overflow-hidden rounded-3xl border border-amber-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(180,83,9,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.12),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(15,10,5,0.98)_42%,_rgba(4,4,6,1))] p-4 text-slate-100 shadow-[0_0_0_1px_rgba(245,158,11,0.08),0_24px_60px_-24px_rgba(217,119,6,0.3)] sm:p-5">
       <style>{`
-        @keyframes noodle-globe-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes noodle-ring-drift { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.04); } to { transform: rotate(360deg) scale(1); } }
         @keyframes noodle-pulse { 0%, 100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.16); } }
-        @keyframes noodle-scan { 0% { transform: translateY(-130%); } 100% { transform: translateY(130%); } }
       `}</style>
 
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
@@ -165,8 +513,8 @@ function NoodleViz({
           </h3>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300/85">
             {isZh
-              ? "把总资产映射成城市生存半径。旋转地球会联动不同城市的面价节点，右侧面板展示你的实时消费火力与续航。"
-              : "Map total assets into a city survival radius. The rotating globe links different city price nodes while the right panel shows your live consumption firepower and runway."}
+              ? "把总资产映射成城市生存半径。金色粒子会先聚拢成一碗面，再以克制的立体节奏缓慢旋转，右侧面板展示你的实时消费火力与续航。"
+              : "Map total assets into a city survival radius. Gold particles gather into a noodle bowl, then rotate with a restrained 3D rhythm while the right panel shows your live consumption firepower and runway."}
           </p>
         </div>
 
@@ -228,8 +576,8 @@ function NoodleViz({
                 <p className="mt-3 text-xs text-slate-400">
                   {selected
                     ? isZh
-                      ? "当前主视角城市，地球轨道和统计面板已同步。"
-                      : "Active city node. Globe orbit and metrics are synchronized."
+                      ? "当前主视角城市，粒子主视觉与统计面板已同步。"
+                      : "Active city node. Particle scene and metrics are synchronized."
                     : isZh
                       ? "点击切换到该城市，观察你的消费火力变化。"
                       : "Switch to this city to compare your consumption power."}
@@ -243,116 +591,10 @@ function NoodleViz({
           <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(245,158,11,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.08)_1px,transparent_1px)] [background-size:32px_32px]" />
 
           <div className="relative mx-auto flex aspect-square w-full max-w-[340px] items-center justify-center">
-            <div
-              className="absolute inset-[8%] rounded-full border border-amber-400/15"
-              style={{ animation: "noodle-ring-drift 18s linear infinite" }}
-            />
-            <div
-              className="absolute inset-[2%] rounded-full border border-amber-300/8"
-              style={{
-                animation: "noodle-ring-drift 24s linear infinite reverse",
-              }}
-            />
             <div className="absolute inset-[18%] rounded-full bg-amber-500/5 blur-3xl" />
 
             <div className="relative h-[76%] w-[76%] overflow-hidden rounded-full border border-amber-300/25 bg-[radial-gradient(circle_at_30%_30%,_rgba(253,230,138,0.06),_rgba(120,53,15,0.12)_28%,_rgba(30,15,5,0.6)_68%,_rgba(2,6,23,0.98)_100%)] shadow-[0_0_40px_rgba(245,158,11,0.15)]">
-              <svg
-                viewBox="0 0 200 200"
-                className="absolute inset-0 h-full w-full"
-                style={{ animation: "noodle-globe-spin 28s linear infinite" }}
-              >
-                <defs>
-                  <clipPath id="globeClip">
-                    <circle cx="100" cy="100" r="98" />
-                  </clipPath>
-                </defs>
-                <g clipPath="url(#globeClip)">
-                  {[-60, -30, 0, 30, 60].map(lat => {
-                    const y = 100 - lat * 0.9;
-                    const rx = Math.cos((lat * Math.PI) / 180) * 90;
-                    return (
-                      <ellipse
-                        key={`lat-${lat}`}
-                        cx="100"
-                        cy={y}
-                        rx={rx}
-                        ry={rx * 0.15}
-                        fill="none"
-                        stroke="rgba(252,211,77,0.18)"
-                        strokeWidth="0.6"
-                      />
-                    );
-                  })}
-                  {[0, 30, 60, 90, 120, 150].map(lon => {
-                    const rx = Math.sin((lon * Math.PI) / 180) * 90;
-                    return (
-                      <ellipse
-                        key={`lon-${lon}`}
-                        cx="100"
-                        cy="100"
-                        rx={Math.max(rx, 1)}
-                        ry={90}
-                        fill="none"
-                        stroke="rgba(252,211,77,0.14)"
-                        strokeWidth="0.6"
-                      />
-                    );
-                  })}
-                  <ellipse
-                    cx="100"
-                    cy="100"
-                    rx={90}
-                    ry={13}
-                    fill="none"
-                    stroke="rgba(245,158,11,0.3)"
-                    strokeWidth="0.8"
-                  />
-                  {locations.map((location, index) => {
-                    const coords = [
-                      [116, 60],
-                      [128, 76],
-                      [140, 94],
-                      [134, 118],
-                    ][index] ?? [120, 84];
-                    const selected = location.id === selectedLocationId;
-
-                    return (
-                      <g key={location.id}>
-                        {selected && (
-                          <circle
-                            cx={coords[0]}
-                            cy={coords[1]}
-                            r={10}
-                            fill="none"
-                            stroke="rgba(245,158,11,0.25)"
-                            strokeWidth="0.6"
-                          />
-                        )}
-                        <circle
-                          cx={coords[0]}
-                          cy={coords[1]}
-                          r={selected ? 3 : 1.8}
-                          fill={selected ? "#f59e0b" : "#fcd34d"}
-                          opacity={selected ? 1 : 0.6}
-                        />
-                        {selected && (
-                          <circle
-                            cx={coords[0]}
-                            cy={coords[1]}
-                            r={3}
-                            fill="none"
-                            stroke="rgba(245,158,11,0.6)"
-                            strokeWidth="0.8"
-                            style={{
-                              animation: "noodle-pulse 2s ease-in-out infinite",
-                            }}
-                          />
-                        )}
-                      </g>
-                    );
-                  })}
-                </g>
-              </svg>
+              <GoldNoodleParticleScene selectedIndex={selectedLocationIndex} />
               <div className="absolute inset-y-0 left-[14%] w-[20%] rounded-full bg-gradient-to-r from-transparent via-amber-100/8 to-transparent blur-md" />
             </div>
           </div>
@@ -499,7 +741,7 @@ export default function PortfolioSummary({ data, onCategoryClick }: Props) {
         symbol: asset.symbol,
         valueUSD: asset.valueUSD,
         type: asset.type,
-        name: asset.name,
+        name: getLocalizedAssetName(asset.symbol, asset.name, isZh),
       });
     }
   }
