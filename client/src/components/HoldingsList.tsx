@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/hooks/useLanguage";
+import { getLocalizedAssetName } from "@/lib/assetLocalization";
 import { trpc } from "@/lib/trpc";
 
 interface Holding {
@@ -581,7 +582,11 @@ export default function HoldingsList({
                                       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                      {asset.name}
+                                      {getLocalizedAssetName(
+                                        asset.symbol,
+                                        asset.name,
+                                        isZh
+                                      )}
                                     </p>
                                     <p className="mt-1 text-xs text-muted-foreground">
                                       {isZh
@@ -682,7 +687,11 @@ export default function HoldingsList({
                                           quantity: first.holding.quantity,
                                           costBasis:
                                             first.holding.costBasis ?? "",
-                                          assetName: asset.name,
+                                          assetName: getLocalizedAssetName(
+                                            asset.symbol,
+                                            asset.name,
+                                            isZh
+                                          ),
                                           symbol: asset.symbol,
                                         });
                                         setExpandedAssets(prev => ({
@@ -758,7 +767,12 @@ export default function HoldingsList({
                                                   quantity: holding.quantity,
                                                   costBasis:
                                                     holding.costBasis ?? "",
-                                                  assetName: asset.name,
+                                                  assetName:
+                                                    getLocalizedAssetName(
+                                                      asset.symbol,
+                                                      asset.name,
+                                                      isZh
+                                                    ),
                                                   symbol: asset.symbol,
                                                 });
                                               }}

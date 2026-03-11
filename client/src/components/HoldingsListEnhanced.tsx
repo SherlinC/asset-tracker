@@ -21,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useLanguage } from "@/hooks/useLanguage";
+import { getLocalizedAssetName } from "@/lib/assetLocalization";
 import { trpc } from "@/lib/trpc";
 
 interface HoldingWithPrice {
@@ -48,6 +50,7 @@ type EditState = {
 };
 
 export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
+  const { language } = useLanguage();
   const [editHolding, setEditHolding] = useState<EditState | null>(null);
   const utils = trpc.useUtils();
 
@@ -72,7 +75,7 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
       toast.success("Holding deleted successfully");
       onRefresh();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Failed to delete holding: ${error.message}`);
     },
   });
@@ -146,146 +149,163 @@ export default function HoldingsListEnhanced({ holdings, onRefresh }: Props) {
 
   return (
     <>
-    <Card>
-      <CardHeader>
-        <CardTitle>Your Holdings</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Asset</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Quantity</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Value</TableHead>
-                <TableHead className="text-right">24h Change</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {holdings.map((holding) => (
-                <TableRow key={holding.holdingId}>
-                  <TableCell>
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {holding.symbol}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {holding.name}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-block px-2 py-1 rounded text-xs font-medium ${getTypeColor(
-                        holding.type
-                      )}`}
-                    >
-                      {holding.type.charAt(0).toUpperCase() + holding.type.slice(1)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatNumber(holding.quantity)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(holding.price)}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    {formatCurrency(holding.value)}
-                  </TableCell>
-                  <TableCell className={`text-right font-mono ${getChangeColor(holding.change24h)}`}>
-                    <div className="flex items-center justify-end gap-1">
-                      {holding.change24h > 0 && <TrendingUp className="w-4 h-4" />}
-                      {holding.change24h < 0 && <TrendingDown className="w-4 h-4" />}
-                      {formatPercent(holding.change24h)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEditHolding({
-                            holdingId: holding.holdingId,
-                            quantity: String(holding.quantity),
-                            symbol: holding.symbol,
-                            name: holding.name,
-                          });
-                        }}
-                        title="编辑持仓"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          deleteHolding.mutate({ holdingId: holding.holdingId });
-                        }}
-                        disabled={deleteHolding.isPending}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Holdings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Asset</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead className="text-right">24h Change</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {holdings.map(holding => (
+                  <TableRow key={holding.holdingId}>
+                    <TableCell>
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {holding.symbol}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {getLocalizedAssetName(
+                            holding.symbol,
+                            holding.name,
+                            language === "zh"
+                          )}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-block px-2 py-1 rounded text-xs font-medium ${getTypeColor(
+                          holding.type
+                        )}`}
+                      >
+                        {holding.type.charAt(0).toUpperCase() +
+                          holding.type.slice(1)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatNumber(holding.quantity)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(holding.price)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(holding.value)}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-mono ${getChangeColor(holding.change24h)}`}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {holding.change24h > 0 && (
+                          <TrendingUp className="w-4 h-4" />
+                        )}
+                        {holding.change24h < 0 && (
+                          <TrendingDown className="w-4 h-4" />
+                        )}
+                        {formatPercent(holding.change24h)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditHolding({
+                              holdingId: holding.holdingId,
+                              quantity: String(holding.quantity),
+                              symbol: holding.symbol,
+                              name: holding.name,
+                            });
+                          }}
+                          title="编辑持仓"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            deleteHolding.mutate({
+                              holdingId: holding.holdingId,
+                            });
+                          }}
+                          disabled={deleteHolding.isPending}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
-    <Dialog
-      open={!!editHolding}
-      onOpenChange={open => !open && setEditHolding(null)}
-    >
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>编辑持仓</DialogTitle>
-          <DialogDescription>
-            {editHolding ? `${editHolding.symbol} ${editHolding.name}` : ""}
-          </DialogDescription>
-        </DialogHeader>
-        {editHolding && (
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-qty">数量</Label>
-              <Input
-                id="edit-qty"
-                type="text"
-                inputMode="decimal"
-                value={editHolding.quantity}
-                onChange={e =>
-                  setEditHolding(prev =>
-                    prev ? { ...prev, quantity: e.target.value } : null
-                  )
-                }
-                placeholder="例如 10 或 0.5"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditHolding(null)}
-              >
-                取消
-              </Button>
-              <Button
-                type="submit"
-                disabled={!editHolding.quantity.trim() || updateHolding.isPending}
-              >
-                {updateHolding.isPending ? "保存中..." : "保存"}
-              </Button>
-            </div>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
+      <Dialog
+        open={!!editHolding}
+        onOpenChange={open => !open && setEditHolding(null)}
+      >
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>编辑持仓</DialogTitle>
+            <DialogDescription>
+              {editHolding
+                ? `${editHolding.symbol} ${getLocalizedAssetName(editHolding.symbol, editHolding.name, language === "zh")}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {editHolding && (
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-qty">数量</Label>
+                <Input
+                  id="edit-qty"
+                  type="text"
+                  inputMode="decimal"
+                  value={editHolding.quantity}
+                  onChange={e =>
+                    setEditHolding(prev =>
+                      prev ? { ...prev, quantity: e.target.value } : null
+                    )
+                  }
+                  placeholder="例如 10 或 0.5"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditHolding(null)}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    !editHolding.quantity.trim() || updateHolding.isPending
+                  }
+                >
+                  {updateHolding.isPending ? "保存中..." : "保存"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

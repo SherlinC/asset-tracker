@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/hooks/useLanguage";
 import { usePriceUpdates } from "@/hooks/usePriceUpdates";
+import { getLocalizedAssetName } from "@/lib/assetLocalization";
 import { trpc } from "@/lib/trpc";
 
 type LocalizedText = {
@@ -1319,7 +1320,11 @@ export default function StrategyPage() {
                                                 {asset.symbol}
                                               </p>
                                               <p className="text-xs text-muted-foreground">
-                                                {asset.name}
+                                                {getLocalizedAssetName(
+                                                  asset.symbol,
+                                                  asset.name,
+                                                  language === "zh"
+                                                )}
                                               </p>
                                             </div>
                                           </div>
@@ -1610,7 +1615,11 @@ export default function StrategyPage() {
                             </Badge>
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {asset.name}
+                            {getLocalizedAssetName(
+                              asset.symbol,
+                              asset.name,
+                              language === "zh"
+                            )}
                           </p>
                         </div>
                       ))}
@@ -1636,7 +1645,11 @@ export default function StrategyPage() {
                             </Badge>
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {asset.name}
+                            {getLocalizedAssetName(
+                              asset.symbol,
+                              asset.name,
+                              language === "zh"
+                            )}
                           </p>
                           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
                             {language === "zh"
@@ -1667,7 +1680,11 @@ export default function StrategyPage() {
                             </Badge>
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {asset.name}
+                            {getLocalizedAssetName(
+                              asset.symbol,
+                              asset.name,
+                              language === "zh"
+                            )}
                           </p>
                           <p className="mt-2 text-xs text-muted-foreground">
                             {language === "zh"

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/hooks/useLanguage";
+import { getLocalizedAssetName } from "@/lib/assetLocalization";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -382,6 +383,7 @@ export default function AddHoldingDialog({
   const fetchPrice = trpc.prices.fetchSingle.useQuery(
     selectedAssetSymbol && selectedAssetSymbol !== ""
       ? {
+          assetId: assets.find(a => a.symbol === selectedAssetSymbol)?.id,
           symbol: selectedAssetSymbol,
           type:
             selectedCategory === "fund" &&
@@ -697,7 +699,11 @@ export default function AddHoldingDialog({
                         {selectedAsset.displaySymbol ?? selectedAsset.symbol}
                       </span>
                       <span className="text-muted-foreground ml-2">
-                        {selectedAsset.name}
+                        {getLocalizedAssetName(
+                          selectedAsset.symbol,
+                          selectedAsset.name,
+                          isZh
+                        )}
                       </span>
                     </span>
                   ) : (
@@ -820,7 +826,11 @@ export default function AddHoldingDialog({
                                 {asset.displaySymbol ?? asset.symbol}
                               </span>
                               <span className="text-muted-foreground ml-2">
-                                {asset.name}
+                                {getLocalizedAssetName(
+                                  asset.symbol,
+                                  asset.name,
+                                  isZh
+                                )}
                               </span>
                               {asset.issuer ? (
                                 <span className="text-muted-foreground ml-2 text-xs">
