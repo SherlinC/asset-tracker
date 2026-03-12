@@ -1,21 +1,30 @@
 import type { Holding, HoldingCategoryKey } from "./types";
 
 export const CATEGORY_ORDER: HoldingCategoryKey[] = [
-  "crypto",
-  "us_stock",
   "a_stock",
   "hk_stock",
-  "us_etf",
+  "us_stock",
   "fund",
+  "us_etf",
+  "crypto",
   "currency",
   "other",
 ];
 
 export const STOCK_CATEGORY_KEYS: HoldingCategoryKey[] = [
-  "us_stock",
   "a_stock",
   "hk_stock",
+  "us_stock",
+];
+
+export const TEMPLATE_CATEGORY_KEYS: HoldingCategoryKey[] = [
+  "a_stock",
+  "hk_stock",
+  "us_stock",
+  "fund",
   "us_etf",
+  "crypto",
+  "currency",
 ];
 
 export const CATEGORY_LABELS: Record<HoldingCategoryKey, string> = {

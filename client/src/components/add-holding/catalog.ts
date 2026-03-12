@@ -39,10 +39,21 @@ export const CATEGORY_LABELS_ZH: Record<AssetCategory, string> = {
 
 export const CATEGORY_ORDER: AssetCategory[] = [
   "stock",
-  "crypto",
-  "precious_metals",
   "fund",
+  "crypto",
   "currency",
+  "precious_metals",
+];
+
+export const STOCK_SUBCATEGORY_ORDER: StockSubCategory[] = [
+  "cn_stock",
+  "hk_stock",
+  "us_stock",
+];
+
+export const FUND_SUBCATEGORY_ORDER: FundSubCategory[] = [
+  "china_fund",
+  "international_fund",
 ];
 
 export const STOCK_SUBCATEGORY_LABELS: Record<StockSubCategory, string> = {

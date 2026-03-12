@@ -3,10 +3,10 @@ import {
   CATEGORY_LABELS,
   CATEGORY_LABELS_ZH,
   CATEGORY_ORDER,
+  FUND_SUBCATEGORY_ORDER,
   FUND_SUBCATEGORY_LABELS,
+  STOCK_SUBCATEGORY_ORDER,
   STOCK_SUBCATEGORY_LABELS,
-  type FundSubCategory,
-  type StockSubCategory,
 } from "@/components/add-holding/catalog";
 import { Label } from "@/components/ui/label";
 import {
@@ -78,9 +78,7 @@ export function AddHoldingSelectionSection({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(
-                Object.keys(STOCK_SUBCATEGORY_LABELS) as StockSubCategory[]
-              ).map(subCategory => (
+              {STOCK_SUBCATEGORY_ORDER.map(subCategory => (
                 <SelectItem key={subCategory} value={subCategory}>
                   {STOCK_SUBCATEGORY_LABELS[subCategory]}
                 </SelectItem>
@@ -101,13 +99,11 @@ export function AddHoldingSelectionSection({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(FUND_SUBCATEGORY_LABELS) as FundSubCategory[]).map(
-                subCategory => (
-                  <SelectItem key={subCategory} value={subCategory}>
-                    {FUND_SUBCATEGORY_LABELS[subCategory]}
-                  </SelectItem>
-                )
-              )}
+              {FUND_SUBCATEGORY_ORDER.map(subCategory => (
+                <SelectItem key={subCategory} value={subCategory}>
+                  {FUND_SUBCATEGORY_LABELS[subCategory]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
