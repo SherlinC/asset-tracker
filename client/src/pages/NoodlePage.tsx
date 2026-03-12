@@ -16,7 +16,7 @@ export default function NoodlePage() {
 
   const text = isZh
     ? {
-        title: "吃山空",
+        title: "坐吃山空",
         subtitle: "把你的总资产翻译成一块深色生存面板。",
         refresh: "刷新",
         refreshed: "生存面板已刷新",
@@ -25,12 +25,12 @@ export default function NoodlePage() {
         hint: "这是一个深色专注页面，用来感受财富与生活成本的关系。",
       }
     : {
-        title: "Eat The Mountain",
+        title: "Spendover",
         subtitle: "Translate your net worth into a dark survival console.",
         refresh: "Refresh",
         refreshed: "Consumption console refreshed",
         refreshFailed: "Refresh failed: ",
-        loading: "Loading consumption console...",
+        loading: "Loading Spendover...",
         hint: "This is a dark focus page designed to feel the relationship between wealth and living costs.",
       };
 

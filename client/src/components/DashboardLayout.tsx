@@ -1,12 +1,4 @@
-import {
-  Brain,
-  Globe,
-  LogOut,
-  Map,
-  PanelLeft,
-  UtensilsCrossed,
-  Wallet,
-} from "lucide-react";
+import { Globe, LogOut, PanelLeft } from "lucide-react";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -34,6 +26,11 @@ import {
 import { getLoginUrl, isOAuthConfigured } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
+import {
+  DASHBOARD_NAV_ITEMS,
+  ROUTE_PATHS,
+  pickLocalizedText,
+} from "@/lib/navigation";
 
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
@@ -48,29 +45,29 @@ export default function DashboardLayout({
   const { loading, user } = useAuth();
   const [, setLocation] = useLocation();
   const { language } = useLanguage();
-  const text =
-    language === "zh"
-      ? {
-          signInToContinue: "登录后继续",
-          devMode: "开发模式",
-          authHint: "访问该仪表盘需要先完成认证，请继续登录流程。",
-          devHint:
-            "请确认 .env 中已配置 DEV_USER_EMAIL 和 DATABASE_URL，并已启动 MySQL，然后刷新本页。",
-          signIn: "登录",
-          retry: "刷新重试",
-          backHome: "返回首页",
-        }
-      : {
-          signInToContinue: "Sign in to continue",
-          devMode: "Development mode",
-          authHint:
-            "Access to this dashboard requires authentication. Continue to launch the login flow.",
-          devHint:
-            "Make sure DEV_USER_EMAIL and DATABASE_URL are configured in .env, MySQL is running, then refresh this page.",
-          signIn: "Sign in",
-          retry: "Retry",
-          backHome: "Back home",
-        };
+  const isZh = language === "zh";
+  const text = isZh
+    ? {
+        signInToContinue: "登录后继续",
+        devMode: "开发模式",
+        authHint: "访问该仪表盘需要先完成认证，请继续登录流程。",
+        devHint:
+          "请确认 .env 中已配置 DEV_USER_EMAIL 和 DATABASE_URL，并已启动 MySQL，然后刷新本页。",
+        signIn: "登录",
+        retry: "刷新重试",
+        backHome: "返回首页",
+      }
+    : {
+        signInToContinue: "Sign in to continue",
+        devMode: "Development mode",
+        authHint:
+          "Access to this dashboard requires authentication. Continue to launch the login flow.",
+        devHint:
+          "Make sure DEV_USER_EMAIL and DATABASE_URL are configured in .env, MySQL is running, then refresh this page.",
+        signIn: "Sign in",
+        retry: "Retry",
+        backHome: "Back home",
+      };
 
   if (loading) {
     return <DashboardLayoutSkeleton />;
@@ -114,7 +111,7 @@ export default function DashboardLayout({
             )}
             <Button
               variant="ghost"
-              onClick={() => setLocation("/")}
+              onClick={() => setLocation(ROUTE_PATHS.home)}
               className="w-full"
             >
               {text.backHome}
@@ -137,47 +134,33 @@ export default function DashboardLayout({
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { language, toggleLanguage } = useLanguage();
+  const isZh = language === "zh";
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const menuItems =
-    language === "zh"
-      ? [
-          { icon: UtensilsCrossed, label: "吃山空", path: "/eat-the-mountain" },
-          { icon: Wallet, label: "资产组合", path: "/dashboard" },
-          { icon: Brain, label: "AI 策略", path: "/ai-strategy" },
-          { icon: Map, label: "钱包规划", path: "/wallet-planning" },
-        ]
-      : [
-          {
-            icon: UtensilsCrossed,
-            label: "Eat The Mountain",
-            path: "/eat-the-mountain",
-          },
-          { icon: Wallet, label: "Asset Portfolio", path: "/dashboard" },
-          { icon: Brain, label: "AI Strategy", path: "/ai-strategy" },
-          { icon: Map, label: "Wallet Planning", path: "/wallet-planning" },
-        ];
+  const menuItems = DASHBOARD_NAV_ITEMS.map(item => ({
+    ...item,
+    label: pickLocalizedText(item.label, isZh),
+  }));
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
-  const text =
-    language === "zh"
-      ? {
-          expand: "展开侧边栏",
-          collapse: "收起侧边栏",
-          navigation: "导航",
-          logout: "登出",
-          menu: "菜单",
-          switchToLanguage: "English",
-        }
-      : {
-          expand: "Expand sidebar",
-          collapse: "Collapse sidebar",
-          navigation: "Navigation",
-          logout: "Log out",
-          menu: "Menu",
-          switchToLanguage: "中文",
-        };
+  const text = isZh
+    ? {
+        expand: "展开侧边栏",
+        collapse: "收起侧边栏",
+        navigation: "导航",
+        logout: "登出",
+        menu: "菜单",
+        switchToLanguage: "English",
+      }
+    : {
+        expand: "Expand sidebar",
+        collapse: "Collapse sidebar",
+        navigation: "Navigation",
+        logout: "Log out",
+        menu: "Menu",
+        switchToLanguage: "中文",
+      };
 
   return (
     <>
@@ -254,7 +237,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 <DropdownMenuItem
                   onClick={async () => {
                     await logout();
-                    setLocation("/");
+                    setLocation(ROUTE_PATHS.home);
                   }}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >

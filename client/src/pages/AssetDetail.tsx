@@ -4,6 +4,8 @@ import { useLocation, useParams } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ROUTE_PATHS } from "@/lib/navigation";
+
 export default function AssetDetail() {
   const params = useParams();
   const [, navigate] = useLocation();
@@ -25,7 +27,7 @@ export default function AssetDetail() {
         {/* Back Button */}
         <Button
           variant="ghost"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate(ROUTE_PATHS.dashboard)}
           className="gap-2"
         >
           <ArrowLeft className="w-4 h-4" />

@@ -3,14 +3,15 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { getColorByType, getTypeOrder, TYPE_LABELS_ZH } from "./constants";
-import type { PieChartDatum } from "./types";
+
+import type { CurrencyDisplay, PieChartDatum, TypeAllocation } from "./types";
 
 type Props = {
   isZh: boolean;
-  currencyDisplay: "USD" | "CNY";
+  currencyDisplay: CurrencyDisplay;
   exchangeRate: number;
   totalValueUSD: number;
-  typeAllocation: Record<string, number>;
+  typeAllocation: TypeAllocation;
   pieChartData: PieChartDatum[];
   onCategoryClick?: (type: string) => void;
 };

@@ -26,3 +26,7 @@ export type PieChartDatum = {
   value: number;
   type: string;
 };
+
+export type TypeAllocation = Record<string, number>;
+
+export type CurrencyDisplay = "USD" | "CNY";

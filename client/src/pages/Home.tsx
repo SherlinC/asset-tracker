@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { clearDevLogoutCookie, getLoginUrl, isOAuthConfigured } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
+import { ROUTE_PATHS } from "@/lib/navigation";
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -81,7 +82,7 @@ export default function Home() {
     if (location !== "/" || !isAuthenticated || !user || hasRedirected.current)
       return;
     hasRedirected.current = true;
-    navigate("/dashboard");
+    navigate(ROUTE_PATHS.dashboard);
   }, [location, isAuthenticated, user, navigate]);
 
   if (loading) {
@@ -128,7 +129,7 @@ export default function Home() {
               <Button
                 onClick={() => {
                   clearDevLogoutCookie();
-                  navigate("/dashboard");
+                  navigate(ROUTE_PATHS.dashboard);
                 }}
               >
                 {text.devEnter}
@@ -164,7 +165,7 @@ export default function Home() {
                   className="text-base"
                   onClick={() => {
                     clearDevLogoutCookie();
-                    navigate("/dashboard");
+                    navigate(ROUTE_PATHS.dashboard);
                   }}
                 >
                   {text.devEnter}

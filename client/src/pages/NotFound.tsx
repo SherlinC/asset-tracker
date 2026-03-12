@@ -3,12 +3,13 @@ import { useLocation } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ROUTE_PATHS } from "@/lib/navigation";
 
 export default function NotFound() {
   const [, setLocation] = useLocation();
 
   const handleGoHome = () => {
-    setLocation("/");
+    setLocation(ROUTE_PATHS.home);
   };
 
   return (

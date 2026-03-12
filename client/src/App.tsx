@@ -2,6 +2,7 @@ import { Route, Switch } from "wouter";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { APP_ROUTES, type RouteComponentKey } from "@/lib/navigation";
 import AssetDetail from "@/pages/AssetDetail";
 import Dashboard from "@/pages/Dashboard";
 import NoodlePage from "@/pages/NoodlePage";
@@ -14,18 +15,30 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 
+const ROUTE_COMPONENTS: Record<RouteComponentKey, () => React.JSX.Element> = {
+  home: Home,
+  dashboard: Dashboard,
+  spendover: NoodlePage,
+  aiStrategy: StrategyPage,
+  walletPlanning: WalletPlanningPage,
+  page2: StrategyPage,
+  assetDetail: AssetDetail,
+  notFound: NotFound,
+};
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/eat-the-mountain" component={NoodlePage} />
-      <Route path="/ai-strategy" component={StrategyPage} />
-      <Route path="/wallet-planning" component={WalletPlanningPage} />
-      <Route path="/page2" component={StrategyPage} />
-      <Route path="/asset/:id" component={AssetDetail} />
-      <Route path="/404" component={NotFound} />
+      {APP_ROUTES.map(route => {
+        const Component = ROUTE_COMPONENTS[route.component];
+
+        return (
+          <Route key={route.path} path={route.path}>
+            {() => <Component />}
+          </Route>
+        );
+      })}
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>

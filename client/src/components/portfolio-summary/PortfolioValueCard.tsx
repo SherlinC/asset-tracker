@@ -7,10 +7,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import type { CurrencyDisplay } from "./types";
+
 type Props = {
   isZh: boolean;
-  currencyDisplay: "USD" | "CNY";
-  onCurrencyChange: (value: "USD" | "CNY") => void;
+  currencyDisplay: CurrencyDisplay;
+  onCurrencyChange: (value: CurrencyDisplay) => void;
   displayValue: number;
   assetCount: number;
   holdingCount: number;
@@ -36,7 +38,9 @@ export function PortfolioValueCard({
         </CardTitle>
         <Select
           value={currencyDisplay}
-          onValueChange={value => onCurrencyChange(value as "USD" | "CNY")}
+          onValueChange={value =>
+            onCurrencyChange(value === "CNY" ? "CNY" : "USD")
+          }
         >
           <SelectTrigger className="h-8 w-20">
             <SelectValue />
