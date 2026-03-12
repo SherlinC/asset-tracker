@@ -1,7 +1,10 @@
-import { Globe, LogOut, PanelLeft } from "lucide-react";
+import { Download, Globe, LogOut, PanelLeft, Upload } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
+import ImportHoldingsDialog from "@/components/ImportHoldingsDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -26,6 +29,7 @@ import {
 import { getLoginUrl, isOAuthConfigured } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
+import { downloadAssetTemplate } from "@/lib/excelTemplate";
 import {
   DASHBOARD_NAV_ITEMS,
   ROUTE_PATHS,
@@ -135,6 +139,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { language, toggleLanguage } = useLanguage();
   const isZh = language === "zh";
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -152,6 +158,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         logout: "登出",
         menu: "菜单",
         switchToLanguage: "English",
+        downloadTemplate: "下载 Excel 模板",
+        importExcel: "导入 Excel 预览",
+        downloadStarted: "模板已开始下载",
+        downloadFailed: "模板下载失败，请稍后重试。",
       }
     : {
         expand: "Expand sidebar",
@@ -160,7 +170,25 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         logout: "Log out",
         menu: "Menu",
         switchToLanguage: "中文",
+        downloadTemplate: "Download Excel Template",
+        importExcel: "Import Excel Preview",
+        downloadStarted: "Template download started",
+        downloadFailed: "Failed to download template. Please try again.",
       };
+
+  const handleDownloadTemplate = async () => {
+    setIsDownloadingTemplate(true);
+
+    try {
+      downloadAssetTemplate(language);
+      toast.success(text.downloadStarted);
+    } catch (error) {
+      console.error("Failed to download asset template:", error);
+      toast.error(text.downloadFailed);
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
 
   return (
     <>
@@ -204,6 +232,27 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                   </SidebarMenuItem>
                 );
               })}
+              <SidebarMenuItem className="mt-2">
+                <SidebarMenuButton
+                  onClick={() => setIsImportDialogOpen(true)}
+                  tooltip={text.importExcel}
+                  className="h-10 transition-all font-normal"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>{text.importExcel}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleDownloadTemplate}
+                  tooltip={text.downloadTemplate}
+                  disabled={isDownloadingTemplate}
+                  className="h-10 transition-all font-normal"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>{text.downloadTemplate}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
 
@@ -252,6 +301,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       </div>
 
       <SidebarInset>
+        <ImportHoldingsDialog
+          open={isImportDialogOpen}
+          onOpenChange={setIsImportDialogOpen}
+        />
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">

@@ -15,6 +15,8 @@ import type {
   CurrencyDisplay,
 } from "@/components/add-holding/types";
 import { useAddHoldingSearch } from "@/components/add-holding/useAddHoldingSearch";
+import ImportHoldingsDialog from "@/components/ImportHoldingsDialog";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -37,9 +39,10 @@ export default function AddHoldingDialog({
   const [selectedCategory, setSelectedCategory] =
     useState<AssetCategory>("stock");
   const [selectedStockSubCategory, setSelectedStockSubCategory] =
-    useState<StockSubCategory>("us_stock");
+    useState<StockSubCategory>("cn_stock");
   const [selectedFundSubCategory, setSelectedFundSubCategory] =
     useState<FundSubCategory>("china_fund");
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [costBasis, setCostBasis] = useState("");
@@ -108,7 +111,7 @@ export default function AddHoldingDialog({
     setQuantity("");
     setCostBasis("");
     setCurrencyDisplay("USD");
-    setSelectedStockSubCategory("us_stock");
+    setSelectedStockSubCategory("cn_stock");
     setSelectedFundSubCategory("china_fund");
     resetSearchState();
   };
@@ -127,7 +130,7 @@ export default function AddHoldingDialog({
 
     if (category !== "stock") {
       setStockSearchInput("");
-      setSelectedStockSubCategory("us_stock");
+      setSelectedStockSubCategory("cn_stock");
     }
   };
 
@@ -216,11 +219,28 @@ export default function AddHoldingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Add New Holding</DialogTitle>
-          <DialogDescription>
-            Add a new asset to your portfolio with real-time pricing
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogTitle>Add New Holding</DialogTitle>
+              <DialogDescription>
+                Add a new asset to your portfolio with real-time pricing
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowImportDialog(true)}
+            >
+              {isZh ? "导入 Excel" : "Import Excel"}
+            </Button>
+          </div>
         </DialogHeader>
+
+        <ImportHoldingsDialog
+          open={showImportDialog}
+          onOpenChange={setShowImportDialog}
+        />
 
         <form onSubmit={handleSubmit} className="min-w-0 w-full space-y-4">
           <AddHoldingSelectionSection
