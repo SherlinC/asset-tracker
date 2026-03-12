@@ -3,18 +3,14 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-type PriceData = {
-  priceUSD: number;
-  priceCNY: number;
-  change24h: number;
-};
+import type { CurrencyDisplay, PriceData } from "./types";
 
 type Props = {
   selectedAssetSymbol: string;
   isLoading: boolean;
   priceData: PriceData | undefined;
-  currencyDisplay: "USD" | "CNY";
-  setCurrencyDisplay: (value: "USD" | "CNY") => void;
+  currencyDisplay: CurrencyDisplay;
+  onCurrencyDisplayChange: (value: CurrencyDisplay) => void;
   currentPrice: number | undefined;
   quantity: string;
   totalValue: number;
@@ -25,7 +21,7 @@ export function PricePreview({
   isLoading,
   priceData,
   currencyDisplay,
-  setCurrencyDisplay,
+  onCurrencyDisplayChange,
   currentPrice,
   quantity,
   totalValue,
@@ -57,7 +53,7 @@ export function PricePreview({
                   type="button"
                   variant={currencyDisplay === "USD" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setCurrencyDisplay("USD")}
+                  onClick={() => onCurrencyDisplayChange("USD")}
                 >
                   USD
                 </Button>
@@ -65,7 +61,7 @@ export function PricePreview({
                   type="button"
                   variant={currencyDisplay === "CNY" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setCurrencyDisplay("CNY")}
+                  onClick={() => onCurrencyDisplayChange("CNY")}
                 >
                   CNY
                 </Button>

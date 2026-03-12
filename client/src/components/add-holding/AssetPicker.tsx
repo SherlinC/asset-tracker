@@ -42,7 +42,6 @@ type Props = {
   stockSearchInput: string;
   onInputChange: (value: string) => void;
   isLoading: boolean;
-  chinaFundQuery: string;
   internationalFundQuery: string;
   stockQuery: string;
 };
@@ -76,7 +75,6 @@ export function AssetPicker({
   stockSearchInput,
   onInputChange,
   isLoading,
-  chinaFundQuery,
   internationalFundQuery,
   stockQuery,
 }: Props) {
