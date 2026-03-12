@@ -15,6 +15,8 @@ import { clearDevLogoutCookie, getLoginUrl, isOAuthConfigured } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { ROUTE_PATHS } from "@/lib/navigation";
 
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const { language, toggleLanguage } = useLanguage();
@@ -197,7 +199,11 @@ export default function Home() {
                 {/* Assets Grid */}
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { symbol: "USD", price: "7.20", change: "+0.2%" },
+                    {
+                      symbol: "USD",
+                      price: DEFAULT_USD_CNY_RATE.toFixed(2),
+                      change: "+0.2%",
+                    },
                     { symbol: "BTC", price: "88,410", change: "+0.18%" },
                     { symbol: "AAPL", price: "255.42", change: "+2.98%" },
                   ].map(asset => (

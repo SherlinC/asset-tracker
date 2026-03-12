@@ -10,6 +10,8 @@ import {
 } from "@/lib/noodle";
 import { trpc } from "@/lib/trpc";
 
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 type PortfolioData = {
   totalValueUSD: number;
   totalValueCNY: number;
@@ -56,7 +58,7 @@ export default function NoodlePanel({ data, className }: Props) {
       ? priceData.priceCNY
       : data?.exchangeRate && data.exchangeRate > 0
         ? data.exchangeRate
-        : 6.9444;
+        : DEFAULT_USD_CNY_RATE;
 
   const noodleVizData = useMemo(() => {
     const totalValueUSD = data?.totalValueUSD ?? 0;

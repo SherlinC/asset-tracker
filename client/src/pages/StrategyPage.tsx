@@ -22,6 +22,8 @@ import { usePriceUpdates } from "@/hooks/usePriceUpdates";
 import { getLocalizedAssetName } from "@/lib/assetLocalization";
 import { trpc } from "@/lib/trpc";
 
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 type LocalizedText = {
   zh: string;
   en: string;
@@ -920,7 +922,7 @@ export default function StrategyPage() {
         currentAllocation,
         activeStrategy.allocation,
         portfolioSummary.data?.totalValueUSD ?? 0,
-        portfolioSummary.data?.exchangeRate ?? 7.2
+        portfolioSummary.data?.exchangeRate ?? DEFAULT_USD_CNY_RATE
       ),
     [activeStrategy.allocation, currentAllocation, portfolioSummary.data]
   );

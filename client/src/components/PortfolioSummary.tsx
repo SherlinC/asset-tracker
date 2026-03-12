@@ -13,6 +13,8 @@ import {
 } from "@/components/portfolio-summary/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 interface Props {
   data?: PortfolioData;
   onCategoryClick?: (type: string) => void;
@@ -39,7 +41,8 @@ export default function PortfolioSummary({ data, onCategoryClick }: Props) {
     return null;
   }
 
-  const exchangeRate = data.exchangeRate > 0 ? data.exchangeRate : 6.9444;
+  const exchangeRate =
+    data.exchangeRate > 0 ? data.exchangeRate : DEFAULT_USD_CNY_RATE;
 
   const displayValue =
     currencyDisplay === "CNY" ? data.totalValueCNY : data.totalValueUSD;

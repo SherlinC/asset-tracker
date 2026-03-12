@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { COOKIE_NAME } from "@shared/const";
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
@@ -27,7 +28,8 @@ type PortfolioAssetSummary = {
 };
 
 async function priceUserHoldings(
-  holdings: Awaited<ReturnType<typeof db.getUserHoldings>>
+  holdings: Awaited<ReturnType<typeof db.getUserHoldings>>,
+  exchangeRates?: Record<string, number>
 ): Promise<PortfolioAssetSummary[]> {
   return Promise.all(
     holdings.map(async h => {
@@ -39,7 +41,8 @@ async function priceUserHoldings(
         const priceData = await fetchAssetPriceWithFallback(
           h.asset.id,
           symbol,
-          type
+          type,
+          exchangeRates
         );
         const priceUSD = priceData.priceUSD;
         const valueUSD = quantity * priceUSD;
@@ -83,7 +86,8 @@ async function recordPortfolioValue(userId: number) {
     return;
   }
 
-  const pricedHoldings = await priceUserHoldings(summary);
+  const exchangeRates = await priceService.fetchExchangeRates();
+  const pricedHoldings = await priceUserHoldings(summary, exchangeRates);
   const totalValueUSD = pricedHoldings.reduce(
     (sum, holding) => sum + holding.valueUSD,
     0
@@ -311,13 +315,13 @@ export const appRouter = router({
     summary: protectedProcedure.query(async ({ ctx }) => {
       const holdings = await db.getUserHoldings(ctx.user.id);
       const exchangeRates = await priceService.fetchExchangeRates();
-      const assets = await priceUserHoldings(holdings);
+      const assets = await priceUserHoldings(holdings, exchangeRates);
       const totalValueUSD = assets.reduce(
         (sum, asset) => sum + asset.valueUSD,
         0
       );
 
-      const usdToCny = exchangeRates.USD || 6.9;
+      const usdToCny = exchangeRates.USD || DEFAULT_USD_CNY_RATE;
       const totalValueCNY = totalValueUSD * usdToCny;
 
       return {

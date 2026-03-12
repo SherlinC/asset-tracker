@@ -1,3 +1,5 @@
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 export type InternationalFundSearchResult = {
   symbol: string;
   name: string;
@@ -40,7 +42,7 @@ export async function getFirstSuccessfulFundQuote(
 }
 
 export function getUsdToCnyRate(exchangeRates: Record<string, number>) {
-  return exchangeRates.USD || 7.2;
+  return exchangeRates.USD || DEFAULT_USD_CNY_RATE;
 }
 
 export function convertForeignPriceToUsdAndCny(

@@ -1,3 +1,5 @@
+import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 import * as db from "./db";
 import * as priceService from "./priceService";
 
@@ -16,9 +18,14 @@ function parseCachedNumber(value: string | null | undefined): number {
 export async function fetchAssetPriceWithFallback(
   assetId: number | null | undefined,
   symbol: string,
-  type: string
+  type: string,
+  exchangeRates?: Record<string, number>
 ): Promise<AssetPriceResult> {
-  const livePrice = await priceService.fetchAssetPrice(symbol, type);
+  const livePrice = await priceService.fetchAssetPrice(
+    symbol,
+    type,
+    exchangeRates
+  );
 
   if (livePrice.priceUSD > 0) {
     if (assetId != null) {
@@ -48,8 +55,8 @@ export async function fetchAssetPriceWithFallback(
     return livePrice;
   }
 
-  const exchangeRates = await priceService.fetchExchangeRates();
-  const usdToCny = exchangeRates.USD || 7.2;
+  const rates = exchangeRates ?? (await priceService.fetchExchangeRates());
+  const usdToCny = rates.USD || DEFAULT_USD_CNY_RATE;
 
   return {
     priceUSD: cachedPriceUSD,

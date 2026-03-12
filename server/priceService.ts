@@ -3,6 +3,8 @@
  * Supports: Exchange rates (USD/HKD to CNY), Crypto (Binance/CoinGecko), Stocks (Finnhub 优先 / Yahoo 兜底)
  */
 
+import { DEFAULT_EXCHANGE_RATES } from "@shared/exchangeRates";
+
 import { ENV } from "./_core/env";
 import {
   convertCnyPriceToUsdAndCny,
@@ -47,13 +49,62 @@ export interface StockQuote {
 }
 
 // Fallback mock data for development/testing (only used when APIs are unavailable)
-const mockExchangeRates: Record<string, number> = {
-  USD: 7.2,
-  HKD: 0.92,
-  EUR: 7.8,
-  JPY: 0.048,
-  CNY: 1,
-};
+const mockExchangeRates: Record<string, number> = { ...DEFAULT_EXCHANGE_RATES };
+
+function normalizeCnyBaseRates(rates: Record<string, number>) {
+  return {
+    USD: rates.USD != null ? 1 / rates.USD : mockExchangeRates.USD,
+    HKD: rates.HKD != null ? 1 / rates.HKD : mockExchangeRates.HKD,
+    EUR: rates.EUR != null ? 1 / rates.EUR : mockExchangeRates.EUR,
+    JPY: rates.JPY != null ? 1 / rates.JPY : mockExchangeRates.JPY,
+    CNY: 1,
+  };
+}
+
+async function fetchExchangeRatesFromExchangeRateApi() {
+  const response = await fetch(
+    "https://api.exchangerate-api.com/v4/latest/CNY",
+    {
+      headers: { Accept: "application/json" },
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as { rates: Record<string, number> };
+  return normalizeCnyBaseRates(data.rates);
+}
+
+async function fetchExchangeRatesFromOpenErApi() {
+  const response = await fetch("https://open.er-api.com/v6/latest/CNY", {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as { rates: Record<string, number> };
+  return normalizeCnyBaseRates(data.rates);
+}
+
+async function fetchExchangeRatesFromFrankfurter() {
+  const response = await fetch(
+    "https://api.frankfurter.app/latest?from=CNY&to=USD,HKD,EUR,JPY",
+    {
+      headers: { Accept: "application/json" },
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as { rates: Record<string, number> };
+  return normalizeCnyBaseRates(data.rates);
+}
 
 const mockStockPrices: Record<string, StockQuote> = {
   AAPL: { symbol: "AAPL", price: 255.42, change: 7.38, changePercent: 2.98 },
@@ -154,39 +205,43 @@ async function fetchCryptoPricesFromBinance(
  */
 export async function fetchExchangeRates(): Promise<Record<string, number>> {
   try {
-    // Try to fetch from ExchangeRate-API (free tier available), base CNY
-    const response = await fetch(
-      "https://api.exchangerate-api.com/v4/latest/CNY",
+    const providers = [
       {
-        headers: { Accept: "application/json" },
-      }
-    );
+        name: "Open ER API",
+        fetchRates: fetchExchangeRatesFromOpenErApi,
+      },
+      {
+        name: "Frankfurter",
+        fetchRates: fetchExchangeRatesFromFrankfurter,
+      },
+      {
+        name: "ExchangeRate-API",
+        fetchRates: fetchExchangeRatesFromExchangeRateApi,
+      },
+    ] as const;
 
-    if (response.ok) {
-      const data = (await response.json()) as { rates: Record<string, number> };
-      const r = data.rates;
-      // API: 1 CNY = r[X] units of X → 1 X = 1/r[X] CNY
-      const usd = r.USD != null ? 1 / r.USD : 7.2;
-      const hkd = r.HKD != null ? 1 / r.HKD : 0.92;
-      const eur = r.EUR != null ? 1 / r.EUR : 7.8;
-      const result: Record<string, number> = {
-        USD: usd,
-        HKD: hkd,
-        EUR: eur,
-        JPY: r.JPY != null ? 1 / r.JPY : 0.048,
-        CNY: 1,
-      };
-      console.log(
-        `[ExchangeRate-API] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}`
-      );
-      return result;
+    for (const provider of providers) {
+      try {
+        const result = await provider.fetchRates();
+
+        if (result) {
+          console.log(
+            `[${provider.name}] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}`
+          );
+          return result;
+        }
+      } catch (error) {
+        console.warn(
+          `[${provider.name}] Failed to fetch exchange rates:`,
+          error
+        );
+      }
     }
   } catch (error) {
     console.error("Error fetching exchange rates from API:", error);
   }
 
-  // Fallback to mock data
-  console.warn("[ExchangeRate-API] Using mock exchange rates");
+  console.warn("[ExchangeRates] Using fallback exchange rates");
   return mockExchangeRates;
 }
 
@@ -872,7 +927,8 @@ async function fetchFundLatestNavFromEastMoney(
  */
 export async function fetchAssetPrice(
   symbol: string,
-  type: string
+  type: string,
+  exchangeRates?: Record<string, number>
 ): Promise<{ priceUSD: number; priceCNY: number; change24h: number }> {
   try {
     if (type === "fund") {
@@ -883,11 +939,11 @@ export async function fetchAssetPrice(
       ]);
 
       if (internationalFundData) {
-        const exchangeRates = await fetchExchangeRates();
+        const rates = exchangeRates ?? (await fetchExchangeRates());
         const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
           internationalFundData.price,
           internationalFundData.currency,
-          exchangeRates
+          rates
         );
 
         return {
@@ -902,10 +958,10 @@ export async function fetchAssetPrice(
         (await fetchFundPriceFromEastMoneyEtfQuote(symbol)) ??
         (await fetchFundLatestNavFromEastMoney(symbol));
       if (fundData) {
-        const exchangeRates = await fetchExchangeRates();
+        const rates = exchangeRates ?? (await fetchExchangeRates());
         const { priceUSD, priceCNY } = convertCnyPriceToUsdAndCny(
           fundData.priceCNY,
-          exchangeRates
+          rates
         );
         return {
           priceUSD,
@@ -916,9 +972,9 @@ export async function fetchAssetPrice(
     } else if (type === "crypto") {
       const prices = await fetchCryptoPrices([symbol]);
       if (prices[symbol]) {
-        const exchangeRates = await fetchExchangeRates();
+        const rates = exchangeRates ?? (await fetchExchangeRates());
         const priceUSD = prices[symbol].current_price;
-        const priceCNY = priceUSD * getUsdToCnyRate(exchangeRates);
+        const priceCNY = priceUSD * getUsdToCnyRate(rates);
         console.log(
           `[fetchAssetPrice] ${symbol}: $${priceUSD.toFixed(2)} / ¥${priceCNY.toFixed(2)}`
         );
@@ -929,15 +985,15 @@ export async function fetchAssetPrice(
         };
       }
     } else if (type === "currency") {
-      const exchangeRates = await fetchExchangeRates();
-      const usdToCny = getUsdToCnyRate(exchangeRates);
+      const rates = exchangeRates ?? (await fetchExchangeRates());
+      const usdToCny = getUsdToCnyRate(rates);
       // All rates are "CNY per 1 unit of currency"
       const cnyPerUnit =
         symbol === "USD"
           ? usdToCny
           : symbol === "CNY"
             ? 1
-            : (exchangeRates[symbol] as number | undefined);
+            : (rates[symbol] as number | undefined);
       if (cnyPerUnit != null && cnyPerUnit > 0) {
         const priceCNY = symbol === "CNY" ? 1 : cnyPerUnit;
         const priceUSD = symbol === "USD" ? 1 : priceCNY / usdToCny;
@@ -950,12 +1006,12 @@ export async function fetchAssetPrice(
     } else if (type === "stock") {
       const prices = await fetchStockPrices([symbol]);
       if (prices[symbol]) {
-        const exchangeRates = await fetchExchangeRates();
+        const rates = exchangeRates ?? (await fetchExchangeRates());
         const q = prices[symbol];
         const { priceUSD, priceCNY } = convertForeignPriceToUsdAndCny(
           q.price,
           q.currency ?? "USD",
-          exchangeRates
+          rates
         );
         console.log(
           `[fetchAssetPrice] stock ${symbol}: $${priceUSD.toFixed(2)} USD / ¥${priceCNY.toFixed(2)} CNY (raw: ${q.price} ${q.currency ?? "USD"})`
