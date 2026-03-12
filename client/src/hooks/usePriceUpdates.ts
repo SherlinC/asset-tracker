@@ -9,10 +9,16 @@ import { trpc } from "@/lib/trpc";
  */
 export function usePriceUpdates(intervalMs: number = 600000) {
   const utils = trpc.useUtils();
+  const recordPortfolioHistory = trpc.portfolioHistory.record.useMutation({
+    onSuccess: () => {
+      void utils.portfolioHistory.get.invalidate();
+    },
+  });
   const refreshPrices = trpc.prices.refresh.useMutation({
     onSuccess: () => {
       void utils.portfolio.summary.invalidate();
       void utils.holdings.list.invalidate();
+      recordPortfolioHistory.mutate();
     },
   });
   const { mutate } = refreshPrices;

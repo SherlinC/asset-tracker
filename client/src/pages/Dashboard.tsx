@@ -58,6 +58,7 @@ export default function Dashboard() {
     },
   });
   const { mutate: recordPortfolioMutate } = recordPortfolio;
+  const { mutateAsync: recordPortfolioMutateAsync } = recordPortfolio;
   const { refetch: refetchPortfolioSummary } = portfolioSummary;
 
   const refreshDashboardData = async () => {
@@ -93,6 +94,7 @@ export default function Dashboard() {
     setIsRefreshing(true);
     try {
       await refreshPrices.mutateAsync();
+      await recordPortfolioMutateAsync();
     } finally {
       setIsRefreshing(false);
     }
