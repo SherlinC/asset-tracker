@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
+import type { Holding } from "@/components/holdings-list/types";
 import ImportHoldingsDialog from "@/components/ImportHoldingsDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -29,6 +30,7 @@ import {
 import { getLoginUrl, isOAuthConfigured } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
+import { downloadCurrentHoldingsWorkbook } from "@/lib/excelExport";
 import { downloadAssetTemplate } from "@/lib/excelTemplate";
 import {
   DASHBOARD_NAV_ITEMS,
@@ -43,8 +45,10 @@ const SIDEBAR_WIDTH = 280;
 
 export default function DashboardLayout({
   children,
+  exportHoldings,
 }: {
   children: React.ReactNode;
+  exportHoldings?: Holding[];
 }) {
   const { loading, user } = useAuth();
   const [, setLocation] = useLocation();
@@ -130,16 +134,25 @@ export default function DashboardLayout({
     <SidebarProvider
       style={{ "--sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties}
     >
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      <DashboardLayoutContent exportHoldings={exportHoldings}>
+        {children}
+      </DashboardLayoutContent>
     </SidebarProvider>
   );
 }
 
-function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+function DashboardLayoutContent({
+  children,
+  exportHoldings,
+}: {
+  children: React.ReactNode;
+  exportHoldings?: Holding[];
+}) {
   const { user, logout } = useAuth();
   const { language, toggleLanguage } = useLanguage();
   const isZh = language === "zh";
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const [isExportingData, setIsExportingData] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
@@ -159,9 +172,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         menu: "菜单",
         switchToLanguage: "English",
         downloadTemplate: "下载 Excel 模板",
+        exportCurrentData: "导出当前数据",
         importExcel: "导入 Excel 预览",
         downloadStarted: "模板已开始下载",
         downloadFailed: "模板下载失败，请稍后重试。",
+        exportStarted: "当前数据已开始导出",
+        exportFailed: "当前数据导出失败，请稍后重试。",
       }
     : {
         expand: "Expand sidebar",
@@ -171,9 +187,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         menu: "Menu",
         switchToLanguage: "中文",
         downloadTemplate: "Download Excel Template",
+        exportCurrentData: "Export Current Data",
         importExcel: "Import Excel Preview",
         downloadStarted: "Template download started",
         downloadFailed: "Failed to download template. Please try again.",
+        exportStarted: "Current data export started",
+        exportFailed: "Failed to export current data. Please try again.",
       };
 
   const handleDownloadTemplate = async () => {
@@ -187,6 +206,29 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       toast.error(text.downloadFailed);
     } finally {
       setIsDownloadingTemplate(false);
+    }
+  };
+
+  const handleExportCurrentData = async () => {
+    if (!exportHoldings || exportHoldings.length === 0) {
+      toast.error(
+        isZh
+          ? "当前没有可导出的持仓数据。"
+          : "There is no holdings data to export."
+      );
+      return;
+    }
+
+    setIsExportingData(true);
+
+    try {
+      await downloadCurrentHoldingsWorkbook(language, exportHoldings);
+      toast.success(text.exportStarted);
+    } catch (error) {
+      console.error("Failed to export current holdings:", error);
+      toast.error(text.exportFailed);
+    } finally {
+      setIsExportingData(false);
     }
   };
 
@@ -233,6 +275,17 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 );
               })}
               <SidebarMenuItem className="mt-2">
+                <SidebarMenuButton
+                  onClick={handleExportCurrentData}
+                  tooltip={text.exportCurrentData}
+                  disabled={isExportingData}
+                  className="h-10 transition-all font-normal"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>{text.exportCurrentData}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => setIsImportDialogOpen(true)}
                   tooltip={text.importExcel}

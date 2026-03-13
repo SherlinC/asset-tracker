@@ -10,6 +10,8 @@ import {
   type AssetTemplateSheetKey,
 } from "./excelTemplate";
 
+export type ImportedAssetType = "currency" | "crypto" | "stock" | "fund";
+
 export type ImportedHoldingPreviewRow = {
   sheetKey: AssetTemplateSheetKey;
   sheetName: string;
@@ -24,6 +26,24 @@ export type ImportedHoldingPreviewResult = {
   rows: ImportedHoldingPreviewRow[];
   globalErrors: string[];
 };
+
+export function inferImportedAssetType(
+  sheetKey: AssetTemplateSheetKey
+): ImportedAssetType {
+  switch (sheetKey) {
+    case "currency":
+      return "currency";
+    case "crypto":
+      return "crypto";
+    case "china_fund":
+    case "international_fund":
+      return "fund";
+    case "a_stock":
+    case "hk_stock":
+    case "us_stock":
+      return "stock";
+  }
+}
 
 function getCellPrimitive(value: unknown): string | number | null {
   if (value == null) return null;

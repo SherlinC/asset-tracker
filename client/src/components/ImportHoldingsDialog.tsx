@@ -1,6 +1,8 @@
 import { AlertCircle, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { ALL_DEFAULT_ASSETS } from "@/components/add-holding/catalog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,10 +13,12 @@ import {
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/useLanguage";
 import {
+  inferImportedAssetType,
   parseAssetWorkbook,
   type ImportedHoldingPreviewResult,
 } from "@/lib/excelImport";
 import { getTemplateSheetName } from "@/lib/excelTemplate";
+import { trpc } from "@/lib/trpc";
 
 type Props = {
   open: boolean;
@@ -24,12 +28,20 @@ type Props = {
 export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
   const { language } = useLanguage();
   const isZh = language === "zh";
+  const utils = trpc.useUtils();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [preview, setPreview] = useState<ImportedHoldingPreviewResult | null>(
     null
   );
+  const assetsQuery = trpc.assets.list.useQuery(undefined, { enabled: open });
+  const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
+    enabled: open,
+  });
+  const createAsset = trpc.assets.create.useMutation();
+  const addHolding = trpc.holdings.add.useMutation();
 
   const text = isZh
     ? {
@@ -50,7 +62,15 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
         status: "状态",
         valid: "通过",
         invalid: "报错",
+        duplicate: "重复，默认跳过",
+        importReady: "可导入",
         noRows: "暂无可预览数据。",
+        importReadyRows: "待导入行",
+        skippedRows: "跳过行",
+        importAction: "确认导入",
+        importing: "导入中...",
+        importSuccess: "Excel 导入完成",
+        importFailed: "Excel 导入失败，请稍后重试。",
       }
     : {
         title: "Excel import preview",
@@ -71,23 +91,148 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
         status: "Status",
         valid: "Valid",
         invalid: "Error",
+        duplicate: "Duplicate, skipped",
+        importReady: "Ready",
         noRows: "No preview rows yet.",
+        importReadyRows: "Rows to import",
+        skippedRows: "Skipped rows",
+        importAction: "Confirm import",
+        importing: "Importing...",
+        importSuccess: "Excel import completed",
+        importFailed: "Excel import failed. Please try again.",
       };
 
   const rows = useMemo(() => preview?.rows ?? [], [preview?.rows]);
-  const validRows = rows.filter(row => row.errors.length === 0).length;
-  const invalidRows = rows.length - validRows;
+  const existingAssets = useMemo(
+    () => assetsQuery.data ?? [],
+    [assetsQuery.data]
+  );
+  const existingHoldings = useMemo(
+    () => holdingsQuery.data ?? [],
+    [holdingsQuery.data]
+  );
+  const rowsWithStatus = useMemo(() => {
+    const knownAssetsBySymbol = new Map(
+      existingAssets.map(asset => [asset.symbol.toUpperCase(), asset])
+    );
+    const builtInAssetsBySymbol = new Map(
+      ALL_DEFAULT_ASSETS.map(asset => [asset.symbol.toUpperCase(), asset])
+    );
+
+    return rows.map(row => {
+      const existingAsset = knownAssetsBySymbol.get(row.symbol.toUpperCase());
+      const builtInAsset = builtInAssetsBySymbol.get(row.symbol.toUpperCase());
+      const hasDuplicateHolding = existingHoldings.some(holding => {
+        const sameSymbol =
+          holding.asset.symbol.toUpperCase() === row.symbol.toUpperCase();
+        const sameQuantity =
+          row.quantity != null &&
+          Math.abs(parseFloat(holding.holding.quantity) - row.quantity) < 1e-8;
+        const existingCostBasis = holding.holding.costBasis
+          ? parseFloat(holding.holding.costBasis)
+          : 0;
+        const targetCostBasis = row.costBasis ?? 0;
+        const sameCostBasis =
+          Math.abs(existingCostBasis - targetCostBasis) < 1e-8;
+
+        return sameSymbol && sameQuantity && sameCostBasis;
+      });
+
+      const unresolved =
+        !existingAsset &&
+        !builtInAsset &&
+        ["us_stock", "hk_stock", "crypto", "currency"].includes(row.sheetKey);
+
+      const errors = unresolved
+        ? [
+            ...row.errors,
+            isZh
+              ? "系统当前无法识别该代码"
+              : "Symbol is not currently recognized by the app",
+          ]
+        : row.errors;
+
+      const status =
+        errors.length > 0
+          ? "invalid"
+          : hasDuplicateHolding
+            ? "duplicate"
+            : "ready";
+
+      return {
+        ...row,
+        errors,
+        status,
+        existingAsset,
+        builtInAsset,
+      };
+    });
+  }, [existingAssets, existingHoldings, isZh, rows]);
+
+  const readyRows = rowsWithStatus.filter(row => row.status === "ready");
+  const skippedRows = rowsWithStatus.filter(row => row.status === "duplicate");
+  const invalidRows = rowsWithStatus.filter(row => row.status === "invalid");
   const allIssues = useMemo(
     () => [
       ...(preview?.globalErrors.map(issue => ({ label: issue })) ?? []),
-      ...rows.flatMap(row =>
+      ...rowsWithStatus.flatMap(row =>
         row.errors.map(error => ({
           label: `${row.sheetName} · row ${row.rowNumber}: ${error}`,
         }))
       ),
     ],
-    [preview?.globalErrors, rows]
+    [preview?.globalErrors, rowsWithStatus]
   );
+
+  const handleImport = async () => {
+    if (readyRows.length === 0) {
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      const assetCache = new Map(
+        existingAssets.map(asset => [asset.symbol.toUpperCase(), asset])
+      );
+
+      for (const row of readyRows) {
+        let asset = assetCache.get(row.symbol.toUpperCase());
+
+        if (!asset) {
+          const fallback = row.builtInAsset;
+          asset = await createAsset.mutateAsync({
+            symbol: row.symbol,
+            type: inferImportedAssetType(row.sheetKey),
+            name: fallback?.name ?? row.symbol,
+            baseCurrency: fallback?.currency ?? "CNY",
+          });
+          assetCache.set(asset.symbol.toUpperCase(), asset);
+        }
+
+        await addHolding.mutateAsync({
+          assetId: asset.id,
+          quantity: String(row.quantity),
+          costBasis: row.costBasis == null ? undefined : String(row.costBasis),
+        });
+      }
+
+      await Promise.all([
+        utils.assets.list.invalidate(),
+        utils.holdings.list.invalidate(),
+        utils.portfolio.summary.invalidate(),
+        utils.portfolioHistory.get.invalidate(),
+      ]);
+
+      toast.success(text.importSuccess);
+      handleOpenChange(false);
+    } catch (error) {
+      console.error("Failed to import workbook:", error);
+      toast.error(text.importFailed);
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -170,15 +315,25 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border bg-background p-4">
-              <p className="text-sm text-muted-foreground">{text.validRows}</p>
+              <p className="text-sm text-muted-foreground">
+                {text.importReadyRows}
+              </p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
-                {validRows}
+                {readyRows.length}
               </p>
             </div>
             <div className="rounded-xl border bg-background p-4">
               <p className="text-sm text-muted-foreground">{text.errorRows}</p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
-                {invalidRows}
+                {invalidRows.length}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-background p-4 md:col-span-2">
+              <p className="text-sm text-muted-foreground">
+                {text.skippedRows}
+              </p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">
+                {skippedRows.length}
               </p>
             </div>
           </div>
@@ -197,11 +352,20 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
             </div>
           ) : null}
 
+          <div className="flex justify-end">
+            <Button
+              onClick={handleImport}
+              disabled={readyRows.length === 0 || isImporting || isParsing}
+            >
+              {isImporting ? text.importing : text.importAction}
+            </Button>
+          </div>
+
           <div className="rounded-xl border bg-background p-4">
             <p className="mb-3 text-sm font-medium text-foreground">
               {text.preview}
             </p>
-            {rows.length === 0 ? (
+            {rowsWithStatus.length === 0 ? (
               <p className="text-sm text-muted-foreground">{text.noRows}</p>
             ) : (
               <div className="max-h-[420px] overflow-auto rounded-lg border">
@@ -226,7 +390,7 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(row => (
+                    {rowsWithStatus.map(row => (
                       <tr
                         key={`${row.sheetKey}-${row.rowNumber}`}
                         className="border-b align-top"
@@ -238,9 +402,13 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
                         <td className="px-3 py-2">{row.quantity ?? "-"}</td>
                         <td className="px-3 py-2">{row.costBasis ?? "-"}</td>
                         <td className="px-3 py-2">
-                          {row.errors.length === 0 ? (
+                          {row.status === "ready" ? (
                             <span className="text-emerald-600 dark:text-emerald-400">
-                              {text.valid}
+                              {text.importReady}
+                            </span>
+                          ) : row.status === "duplicate" ? (
+                            <span className="text-blue-600 dark:text-blue-400">
+                              {text.duplicate}
                             </span>
                           ) : (
                             <div className="space-y-1 text-amber-700 dark:text-amber-300">
