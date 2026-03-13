@@ -109,7 +109,7 @@ export default function Dashboard() {
   }
 
   return (
-    <DashboardLayout exportHoldings={holdings.data || []}>
+    <DashboardLayout exportHoldings={holdings.data}>
       <div className="space-y-6">
         {/* Header with refresh button */}
         <div className="flex items-center justify-between">

@@ -117,7 +117,7 @@ function validateSymbol(sheetKey: AssetTemplateSheetKey, symbol: string) {
         ? null
         : "China fund codes must be 6 digits";
     case "international_fund":
-      return /^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol)
+      return /^[A-Z][A-Z0-9.-]{0,31}$/.test(symbol)
         ? null
         : "International fund symbols must be a ticker or *.EUFUND code";
     case "crypto":
@@ -149,7 +149,7 @@ function validateRow(
     errors.push("Quantity must be a positive number");
   }
 
-  if (row.costBasis == null || row.costBasis < 0) {
+  if (row.costBasis != null && row.costBasis < 0) {
     errors.push("Cost basis must be zero or a positive number");
   }
 

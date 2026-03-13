@@ -16,7 +16,7 @@ export function formatQuantity(value: number) {
 }
 
 export function formatDateTime(value: Date) {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",

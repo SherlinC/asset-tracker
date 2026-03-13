@@ -18,6 +18,46 @@ import type {
   TimeRange,
 } from "./types";
 
+function formatChartAxisDate(date: Date, timeRange: TimeRange) {
+  if (timeRange === "24h") {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  if (timeRange === "1y") {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "numeric",
+    }).format(date);
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "numeric",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatChartTooltipDate(date: Date, timeRange: TimeRange) {
+  if (timeRange === "24h") {
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function getHistoryDays(timeRange: TimeRange) {
   switch (timeRange) {
     case "24h":
@@ -53,14 +93,18 @@ export function buildChartData(
         ? sortedHistory.map(item => ({
             timestamp: item.timestamp,
             totalValue: item.totalValue,
-            formattedDate: format(item.timestamp, "HH:mm"),
+            formattedDate: formatChartAxisDate(item.timestamp, timeRange),
+            tooltipDate: formatChartTooltipDate(item.timestamp, timeRange),
+            detailDate: formatChartTooltipDate(item.timestamp, timeRange),
             dateKey: item.timestamp.toISOString(),
           }))
         : eachHourOfInterval({ start: rangeStart, end: rangeEnd }).map(
             hour => ({
               timestamp: hour,
               totalValue: 0,
-              formattedDate: format(hour, "HH:mm"),
+              formattedDate: formatChartAxisDate(hour, timeRange),
+              tooltipDate: formatChartTooltipDate(hour, timeRange),
+              detailDate: formatChartTooltipDate(hour, timeRange),
               dateKey: hour.toISOString(),
             })
           );
@@ -124,7 +168,9 @@ export function buildChartData(
       .map(([monthKey, day]) => ({
         timestamp: day,
         totalValue: byMonth.get(monthKey) ?? 0,
-        formattedDate: String(getMonth(day) + 1),
+        formattedDate: formatChartAxisDate(day, timeRange),
+        tooltipDate: formatChartTooltipDate(day, timeRange),
+        detailDate: formatChartTooltipDate(day, timeRange),
         dateKey: monthKey,
       }));
   } else {
@@ -145,7 +191,9 @@ export function buildChartData(
       return {
         timestamp: day,
         totalValue,
-        formattedDate: format(day, "M/d"),
+        formattedDate: formatChartAxisDate(day, timeRange),
+        tooltipDate: formatChartTooltipDate(day, timeRange),
+        detailDate: formatChartTooltipDate(day, timeRange),
         dateKey,
       };
     });
@@ -261,7 +309,7 @@ export function getDataPointInfo(
     : "0.00";
 
   return {
-    date: point.formattedDate,
+    date: point.detailDate,
     value: point.totalValue,
     dayChange,
     dayChangePercent,

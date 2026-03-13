@@ -5,7 +5,6 @@ import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
 import type { Holding } from "@/components/holdings-list/types";
-import ImportHoldingsDialog from "@/components/ImportHoldingsDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -32,6 +31,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
 import { downloadCurrentHoldingsWorkbook } from "@/lib/excelExport";
 import { downloadAssetTemplate } from "@/lib/excelTemplate";
+import { trpc } from "@/lib/trpc";
 import {
   DASHBOARD_NAV_ITEMS,
   ROUTE_PATHS,
@@ -151,12 +151,17 @@ function DashboardLayoutContent({
   const { user, logout } = useAuth();
   const { language, toggleLanguage } = useLanguage();
   const isZh = language === "zh";
+  const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
+    enabled: exportHoldings === undefined,
+  });
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const availableExportHoldings = exportHoldings ?? holdingsQuery.data ?? [];
+  const isExportDataLoading =
+    exportHoldings === undefined && holdingsQuery.isLoading;
   const menuItems = DASHBOARD_NAV_ITEMS.map(item => ({
     ...item,
     label: pickLocalizedText(item.label, isZh),
@@ -171,11 +176,12 @@ function DashboardLayoutContent({
         logout: "登出",
         menu: "菜单",
         switchToLanguage: "English",
-        downloadTemplate: "下载 Excel 模板",
+        downloadTemplate: "下载示例模板",
         exportCurrentData: "导出当前数据",
         importExcel: "导入 Excel 预览",
         downloadStarted: "模板已开始下载",
         downloadFailed: "模板下载失败，请稍后重试。",
+        exportLoading: "正在加载可导出的持仓数据，请稍后重试。",
         exportStarted: "当前数据已开始导出",
         exportFailed: "当前数据导出失败，请稍后重试。",
       }
@@ -186,11 +192,13 @@ function DashboardLayoutContent({
         logout: "Log out",
         menu: "Menu",
         switchToLanguage: "中文",
-        downloadTemplate: "Download Excel Template",
+        downloadTemplate: "Download Sample Template",
         exportCurrentData: "Export Current Data",
         importExcel: "Import Excel Preview",
         downloadStarted: "Template download started",
         downloadFailed: "Failed to download template. Please try again.",
+        exportLoading:
+          "Exportable holdings are still loading. Please try again.",
         exportStarted: "Current data export started",
         exportFailed: "Failed to export current data. Please try again.",
       };
@@ -210,7 +218,12 @@ function DashboardLayoutContent({
   };
 
   const handleExportCurrentData = async () => {
-    if (!exportHoldings || exportHoldings.length === 0) {
+    if (isExportDataLoading) {
+      toast.error(text.exportLoading);
+      return;
+    }
+
+    if (availableExportHoldings.length === 0) {
       toast.error(
         isZh
           ? "当前没有可导出的持仓数据。"
@@ -222,7 +235,7 @@ function DashboardLayoutContent({
     setIsExportingData(true);
 
     try {
-      await downloadCurrentHoldingsWorkbook(language, exportHoldings);
+      await downloadCurrentHoldingsWorkbook(language, availableExportHoldings);
       toast.success(text.exportStarted);
     } catch (error) {
       console.error("Failed to export current holdings:", error);
@@ -278,7 +291,7 @@ function DashboardLayoutContent({
                 <SidebarMenuButton
                   onClick={handleExportCurrentData}
                   tooltip={text.exportCurrentData}
-                  disabled={isExportingData}
+                  disabled={isExportingData || isExportDataLoading}
                   className="h-10 transition-all font-normal"
                 >
                   <Download className="h-4 w-4" />
@@ -287,7 +300,7 @@ function DashboardLayoutContent({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => setIsImportDialogOpen(true)}
+                  onClick={() => setLocation(ROUTE_PATHS.importPreview)}
                   tooltip={text.importExcel}
                   className="h-10 transition-all font-normal"
                 >
@@ -354,10 +367,6 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        <ImportHoldingsDialog
-          open={isImportDialogOpen}
-          onOpenChange={setIsImportDialogOpen}
-        />
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">

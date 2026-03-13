@@ -187,6 +187,8 @@ export const ASSETS_BY_CATEGORY: Record<AssetCategory, AssetOption[]> = {
     { symbol: "CNY", type: "currency", name: "人民币" },
     { symbol: "EUR", type: "currency", name: "欧元" },
     { symbol: "HKD", type: "currency", name: "Hong Kong Dollar" },
+    { symbol: "RUB", type: "currency", name: "俄罗斯卢布" },
+    { symbol: "USDT", type: "currency", name: "USDT 稳定币" },
   ],
 };
 

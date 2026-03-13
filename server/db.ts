@@ -1,5 +1,6 @@
 import { eq, and, inArray, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { createPool, type Pool, type PoolOptions } from "mysql2";
 
 import {
   assets,
@@ -14,19 +15,50 @@ import { ENV } from "./_core/env";
 import type { InsertUser, User } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: Pool | null = null;
+const UTC_TIME_ZONE_QUERY = "SET time_zone = '+00:00'";
+
+function buildMysqlPoolOptions(databaseUrl: string): PoolOptions {
+  return {
+    uri: databaseUrl,
+    timezone: "Z",
+  };
+}
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _pool = createPool(buildMysqlPoolOptions(process.env.DATABASE_URL));
+      _pool.on("connection", connection => {
+        connection.query(UTC_TIME_ZONE_QUERY, error => {
+          if (error) {
+            console.warn(
+              "[Database] Failed to set UTC session timezone:",
+              error
+            );
+          }
+        });
+      });
+
+      const connection = await _pool.promise().getConnection();
+      try {
+        await connection.query(UTC_TIME_ZONE_QUERY);
+      } finally {
+        connection.release();
+      }
+
+      _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
     }
   }
   return _db;
 }
+
+export { buildMysqlPoolOptions };
 
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
@@ -237,6 +269,35 @@ export async function deleteHolding(holdingId: number) {
   if (!db) throw new Error("Database not available");
 
   await db.delete(holdings).where(eq(holdings.id, holdingId));
+}
+
+export async function replaceUserHoldings(
+  userId: number,
+  nextHoldings: Array<{
+    assetId: number;
+    quantity: string;
+    costBasis?: string;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async tx => {
+    await tx.delete(holdings).where(eq(holdings.userId, userId));
+
+    if (nextHoldings.length === 0) {
+      return;
+    }
+
+    await tx.insert(holdings).values(
+      nextHoldings.map(holding => ({
+        userId,
+        assetId: holding.assetId,
+        quantity: holding.quantity,
+        costBasis: holding.costBasis ?? null,
+      }))
+    );
+  });
 }
 
 // Price queries

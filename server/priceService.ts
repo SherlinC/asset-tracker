@@ -57,6 +57,7 @@ function normalizeCnyBaseRates(rates: Record<string, number>) {
     HKD: rates.HKD != null ? 1 / rates.HKD : mockExchangeRates.HKD,
     EUR: rates.EUR != null ? 1 / rates.EUR : mockExchangeRates.EUR,
     JPY: rates.JPY != null ? 1 / rates.JPY : mockExchangeRates.JPY,
+    RUB: rates.RUB != null ? 1 / rates.RUB : mockExchangeRates.RUB,
     CNY: 1,
   };
 }
@@ -92,7 +93,7 @@ async function fetchExchangeRatesFromOpenErApi() {
 
 async function fetchExchangeRatesFromFrankfurter() {
   const response = await fetch(
-    "https://api.frankfurter.app/latest?from=CNY&to=USD,HKD,EUR,JPY",
+    "https://api.frankfurter.app/latest?from=CNY&to=USD,HKD,EUR,JPY,RUB",
     {
       headers: { Accept: "application/json" },
     }
@@ -226,7 +227,7 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
 
         if (result) {
           console.log(
-            `[${provider.name}] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}`
+            `[${provider.name}] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}, RUB/CNY: ${result.RUB.toFixed(4)}`
           );
           return result;
         }
@@ -989,14 +990,15 @@ export async function fetchAssetPrice(
       const usdToCny = getUsdToCnyRate(rates);
       // All rates are "CNY per 1 unit of currency"
       const cnyPerUnit =
-        symbol === "USD"
+        symbol === "USD" || symbol === "USDT"
           ? usdToCny
           : symbol === "CNY"
             ? 1
             : (rates[symbol] as number | undefined);
       if (cnyPerUnit != null && cnyPerUnit > 0) {
         const priceCNY = symbol === "CNY" ? 1 : cnyPerUnit;
-        const priceUSD = symbol === "USD" ? 1 : priceCNY / usdToCny;
+        const priceUSD =
+          symbol === "USD" || symbol === "USDT" ? 1 : priceCNY / usdToCny;
         return {
           priceUSD,
           priceCNY,

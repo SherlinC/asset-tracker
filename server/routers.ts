@@ -265,6 +265,34 @@ export const appRouter = router({
         await recordPortfolioValue(ctx.user.id);
         return { success: true };
       }),
+
+    replaceAll: protectedProcedure
+      .input(
+        z.object({
+          holdings: z.array(
+            z.object({
+              assetId: z.number(),
+              quantity: z.string(),
+              costBasis: z.string().optional(),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const userAssets = await db.getUserAssets(ctx.user.id);
+        const allowedAssetIds = new Set(userAssets.map(asset => asset.id));
+
+        if (
+          input.holdings.some(holding => !allowedAssetIds.has(holding.assetId))
+        ) {
+          throw new Error("Unauthorized asset reference");
+        }
+
+        await db.replaceUserHoldings(ctx.user.id, input.holdings);
+        await recordPortfolioValue(ctx.user.id);
+
+        return { success: true };
+      }),
   }),
 
   // Prices

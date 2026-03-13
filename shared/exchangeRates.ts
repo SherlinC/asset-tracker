@@ -5,5 +5,6 @@ export const DEFAULT_EXCHANGE_RATES = {
   HKD: 0.88,
   EUR: 7.95,
   JPY: 0.043,
+  RUB: 0.078,
   CNY: 1,
 } as const;

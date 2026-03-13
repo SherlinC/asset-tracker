@@ -25,7 +25,8 @@ export function ChartTooltip({
       style={{ borderColor: "hsl(var(--border))" }}
     >
       <p className="text-xs text-muted-foreground">
-        {isZh ? "时间" : "Time"}: {label}
+        {isZh ? "时间" : "Time"}:{" "}
+        {String(payload[0]?.payload?.tooltipDate ?? label ?? "")}
       </p>
       <p className="font-semibold">{formatUSD(payload[0]?.value ?? 0)}</p>
       <p className="text-xs text-muted-foreground">

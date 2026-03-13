@@ -74,6 +74,7 @@ const TEMPLATE_TEXT = {
     instructionRows: [
       ["用途", "按 sheet 分类填写资产，后续可直接用于批量导入。"],
       ["填写规则", "只填代码、数量、成本（人民币）；首行为表头，不要删除。"],
+      ["示例说明", "每个 sheet 默认只提供一行示例数据，可自行增加或删除行。"],
       ["代码要求", "系统会自动识别标的代码；识别失败时，预览页会报错。"],
       ["隐私提示", "不要在模板里填写账号、密码、私钥、助记词等敏感信息。"],
     ],
@@ -87,6 +88,10 @@ const TEMPLATE_TEXT = {
       [
         "Rules",
         "Only enter symbol, quantity, and cost basis in CNY. Keep the header row.",
+      ],
+      [
+        "Sample rows",
+        "Each sheet starts with a single example row only. You can add or remove rows as needed.",
       ],
       [
         "Symbol handling",

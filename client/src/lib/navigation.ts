@@ -14,6 +14,7 @@ export type LocalizedText = {
 export const ROUTE_PATHS = {
   home: "/",
   dashboard: "/dashboard",
+  importPreview: "/import-preview",
   spendover: "/spendover",
   aiStrategy: "/ai-strategy",
   walletPlanning: "/wallet-planning",
@@ -25,6 +26,7 @@ export const ROUTE_PATHS = {
 export type RouteComponentKey =
   | "home"
   | "dashboard"
+  | "importPreview"
   | "spendover"
   | "aiStrategy"
   | "walletPlanning"
@@ -46,6 +48,7 @@ type NavigationItem = {
 export const APP_ROUTES: AppRoute[] = [
   { path: ROUTE_PATHS.home, component: "home" },
   { path: ROUTE_PATHS.dashboard, component: "dashboard" },
+  { path: ROUTE_PATHS.importPreview, component: "importPreview" },
   { path: ROUTE_PATHS.spendover, component: "spendover" },
   { path: ROUTE_PATHS.aiStrategy, component: "aiStrategy" },
   { path: ROUTE_PATHS.walletPlanning, component: "walletPlanning" },

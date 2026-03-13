@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_ROUTES, type RouteComponentKey } from "@/lib/navigation";
 import AssetDetail from "@/pages/AssetDetail";
 import Dashboard from "@/pages/Dashboard";
+import ImportPreviewPage from "@/pages/ImportPreviewPage";
 import NoodlePage from "@/pages/NoodlePage";
 import NotFound from "@/pages/NotFound";
 import StrategyPage from "@/pages/StrategyPage";
@@ -18,6 +19,7 @@ import Home from "./pages/Home";
 const ROUTE_COMPONENTS: Record<RouteComponentKey, () => React.JSX.Element> = {
   home: Home,
   dashboard: Dashboard,
+  importPreview: ImportPreviewPage,
   spendover: NoodlePage,
   aiStrategy: StrategyPage,
   walletPlanning: WalletPlanningPage,

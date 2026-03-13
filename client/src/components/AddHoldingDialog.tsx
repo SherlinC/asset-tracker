@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 import { AddHoldingDetailsSection } from "@/components/add-holding/AddHoldingDetailsSection";
 import { AddHoldingSelectionSection } from "@/components/add-holding/AddHoldingSelectionSection";
@@ -15,7 +16,6 @@ import type {
   CurrencyDisplay,
 } from "@/components/add-holding/types";
 import { useAddHoldingSearch } from "@/components/add-holding/useAddHoldingSearch";
-import ImportHoldingsDialog from "@/components/ImportHoldingsDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/useLanguage";
+import { ROUTE_PATHS } from "@/lib/navigation";
 import { trpc } from "@/lib/trpc";
 
 export default function AddHoldingDialog({
@@ -34,6 +35,7 @@ export default function AddHoldingDialog({
   onSuccess,
 }: Props) {
   const { language } = useLanguage();
+  const [, setLocation] = useLocation();
   const isZh = language === "zh";
   const utils = trpc.useUtils();
   const [selectedCategory, setSelectedCategory] =
@@ -42,7 +44,6 @@ export default function AddHoldingDialog({
     useState<StockSubCategory>("cn_stock");
   const [selectedFundSubCategory, setSelectedFundSubCategory] =
     useState<FundSubCategory>("china_fund");
-  const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [costBasis, setCostBasis] = useState("");
@@ -230,17 +231,15 @@ export default function AddHoldingDialog({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setShowImportDialog(true)}
+              onClick={() => {
+                onOpenChange(false);
+                setLocation(ROUTE_PATHS.importPreview);
+              }}
             >
               {isZh ? "导入 Excel" : "Import Excel"}
             </Button>
           </div>
         </DialogHeader>
-
-        <ImportHoldingsDialog
-          open={showImportDialog}
-          onOpenChange={setShowImportDialog}
-        />
 
         <form onSubmit={handleSubmit} className="min-w-0 w-full space-y-4">
           <AddHoldingSelectionSection

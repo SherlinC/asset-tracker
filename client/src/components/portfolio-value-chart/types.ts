@@ -12,6 +12,8 @@ export type ChartDataPoint = {
   timestamp: Date;
   totalValue: number;
   formattedDate: string;
+  tooltipDate: string;
+  detailDate: string;
   dateKey: string;
 };
 
