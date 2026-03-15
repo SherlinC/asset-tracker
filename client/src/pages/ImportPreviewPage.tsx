@@ -3,8 +3,8 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
-import DashboardLayout from "@/components/DashboardLayout";
 import { ALL_DEFAULT_ASSETS } from "@/components/add-holding/catalog";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
 import {

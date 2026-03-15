@@ -361,8 +361,6 @@ export function AnimatedGlobe({
       return Math.PI / 2 - lonRad;
     };
 
-    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
     const resize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
@@ -844,4 +842,3 @@ export function AnimatedGlobe({
     />
   );
 }
-

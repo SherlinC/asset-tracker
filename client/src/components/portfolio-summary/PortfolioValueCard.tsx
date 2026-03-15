@@ -17,7 +17,7 @@ type Props = {
   assetCount: number;
   holdingCount: number;
   exchangeRate: number;
-  typeCount: number;
+  children?: React.ReactNode;
 };
 
 export function PortfolioValueCard({
@@ -28,7 +28,7 @@ export function PortfolioValueCard({
   assetCount,
   holdingCount,
   exchangeRate,
-  typeCount,
+  children,
 }: Props) {
   return (
     <Card>
@@ -42,7 +42,7 @@ export function PortfolioValueCard({
             onCurrencyChange(value === "CNY" ? "CNY" : "USD")
           }
         >
-          <SelectTrigger className="h-8 w-20">
+          <SelectTrigger className="w-fit h-8 border-none shadow-none p-0 focus:ring-0 [&>svg]:opacity-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -52,42 +52,33 @@ export function PortfolioValueCard({
         </Select>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold text-foreground">
-          {currencyDisplay === "CNY" ? "¥" : "$"}
-          {displayValue.toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {isZh
-            ? `共 ${assetCount} 个资产（${holdingCount} 条持仓）`
-            : `${assetCount} assets (${holdingCount} holdings) tracked`}
-        </p>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              {isZh ? "美元兑人民币" : "USD to CNY"}
-            </p>
-            <p className="mt-2 text-lg font-semibold text-foreground">
-              {exchangeRate.toFixed(4)}
-            </p>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div>
+              <div className="text-3xl font-bold text-foreground">
+                {currencyDisplay === "CNY" ? "¥" : "$"}
+                {displayValue.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {isZh
+                  ? `共 ${assetCount} 个资产（${holdingCount} 条持仓）`
+                  : `${assetCount} assets (${holdingCount} holdings) tracked`}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                {isZh ? "美元兑人民币" : "USD to CNY"}
+              </p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {exchangeRate.toFixed(4)}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              {isZh ? "资产类别" : "Asset classes"}
-            </p>
-            <p className="mt-2 text-lg font-semibold text-foreground">
-              {typeCount}
-            </p>
-          </div>
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              {isZh ? "主要用途" : "Mode"}
-            </p>
-            <p className="mt-2 text-lg font-semibold text-foreground">
-              {isZh ? "资产监控" : "Asset monitoring"}
-            </p>
+          <div className="w-full">
+            {children}
           </div>
         </div>
       </CardContent>

@@ -1,17 +1,10 @@
-import { Download, Globe, LogOut, PanelLeft, Upload } from "lucide-react";
+import { Download, PanelLeft, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
 import type { Holding } from "@/components/holdings-list/types";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -31,17 +24,17 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
 import { downloadCurrentHoldingsWorkbook } from "@/lib/excelExport";
 import { downloadAssetTemplate } from "@/lib/excelTemplate";
-import { trpc } from "@/lib/trpc";
 import {
   DASHBOARD_NAV_ITEMS,
   ROUTE_PATHS,
   pickLocalizedText,
 } from "@/lib/navigation";
+import { trpc } from "@/lib/trpc";
 
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
-const SIDEBAR_WIDTH = 280;
+const SIDEBAR_WIDTH = 188;
 
 export default function DashboardLayout({
   children,
@@ -148,8 +141,7 @@ function DashboardLayoutContent({
   children: React.ReactNode;
   exportHoldings?: Holding[];
 }) {
-  const { user, logout } = useAuth();
-  const { language, toggleLanguage } = useLanguage();
+  const { language } = useLanguage();
   const isZh = language === "zh";
   const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
     enabled: exportHoldings === undefined,
@@ -173,12 +165,10 @@ function DashboardLayoutContent({
         expand: "展开侧边栏",
         collapse: "收起侧边栏",
         navigation: "导航",
-        logout: "登出",
         menu: "菜单",
-        switchToLanguage: "English",
-        downloadTemplate: "下载示例模板",
-        exportCurrentData: "导出当前数据",
-        importExcel: "导入 Excel 预览",
+        downloadTemplate: "下载模板",
+        exportCurrentData: "导出资产",
+        importExcel: "添加资产",
         downloadStarted: "模板已开始下载",
         downloadFailed: "模板下载失败，请稍后重试。",
         exportLoading: "正在加载可导出的持仓数据，请稍后重试。",
@@ -189,12 +179,10 @@ function DashboardLayoutContent({
         expand: "Expand sidebar",
         collapse: "Collapse sidebar",
         navigation: "Navigation",
-        logout: "Log out",
         menu: "Menu",
-        switchToLanguage: "中文",
-        downloadTemplate: "Download Sample Template",
-        exportCurrentData: "Export Current Data",
-        importExcel: "Import Excel Preview",
+        downloadTemplate: "Download Template",
+        exportCurrentData: "Export Assets",
+        importExcel: "Add Asset",
         downloadStarted: "Template download started",
         downloadFailed: "Failed to download template. Please try again.",
         exportLoading:
@@ -269,6 +257,17 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
+              <SidebarMenuItem>
+                <Button
+                  onClick={() => setLocation(ROUTE_PATHS.importPreview)}
+                  variant="default"
+                  size="sm"
+                  className="w-full justify-start gap-2 h-10"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>{text.importExcel}</span>
+                </Button>
+              </SidebarMenuItem>
               {menuItems.map(item => {
                 const isActive = location === item.path;
                 return (
@@ -287,80 +286,34 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
-              <SidebarMenuItem className="mt-2">
-                <SidebarMenuButton
-                  onClick={handleExportCurrentData}
-                  tooltip={text.exportCurrentData}
-                  disabled={isExportingData || isExportDataLoading}
-                  className="h-10 transition-all font-normal"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>{text.exportCurrentData}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => setLocation(ROUTE_PATHS.importPreview)}
-                  tooltip={text.importExcel}
-                  className="h-10 transition-all font-normal"
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>{text.importExcel}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={handleDownloadTemplate}
-                  tooltip={text.downloadTemplate}
-                  disabled={isDownloadingTemplate}
-                  className="h-10 transition-all font-normal"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>{text.downloadTemplate}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
 
           <SidebarFooter className="p-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={toggleLanguage}
-                  className="cursor-pointer"
+            <div className="space-y-2">
+              <div className="space-y-2">
+                <Button
+                  onClick={handleExportCurrentData}
+                  disabled={isExportingData || isExportDataLoading}
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2"
                 >
-                  <Globe className="mr-2 h-4 w-4" />
-                  <span>{text.switchToLanguage}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={async () => {
-                    await logout();
-                    setLocation(ROUTE_PATHS.home);
-                  }}
-                  className="cursor-pointer text-destructive focus:text-destructive"
+                  <Download className="h-4 w-4" />
+                  <span>{text.exportCurrentData}</span>
+                </Button>
+                <Button
+                  onClick={handleDownloadTemplate}
+                  disabled={isDownloadingTemplate}
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2"
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>{text.logout}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <Download className="h-4 w-4" />
+                  <span>{text.downloadTemplate}</span>
+                </Button>
+              </div>
+            </div>
           </SidebarFooter>
         </Sidebar>
         <SidebarRail />

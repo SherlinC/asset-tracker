@@ -2,7 +2,6 @@ import {
   eachHourOfInterval,
   eachDayOfInterval,
   format,
-  getMonth,
   isAfter,
   startOfDay,
   subDays,

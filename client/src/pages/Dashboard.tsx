@@ -7,7 +7,6 @@ import AddHoldingDialog from "@/components/AddHoldingDialog";
 import DashboardLayout from "@/components/DashboardLayout";
 import HoldingsList from "@/components/HoldingsList";
 import PortfolioSummary from "@/components/PortfolioSummary";
-import PortfolioValueChart from "@/components/PortfolioValueChart";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
 import { usePriceUpdates } from "@/hooks/usePriceUpdates";
@@ -153,9 +152,6 @@ export default function Dashboard() {
             }}
           />
         )}
-
-        {/* Portfolio Value Trend Chart */}
-        <PortfolioValueChart />
 
         {/* Holdings List */}
         {holdings.isLoading ? (

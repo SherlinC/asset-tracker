@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Generate lightweight road network polylines for AnimatedGlobe flat mode.
  *
@@ -229,18 +228,7 @@ function serializeTS(cityToRoads) {
 
 async function main() {
   /** @type {Record<string, any>} */
-  const cityToRoads = fs.existsSync(OUT_FILE)
-    ? // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      (() => {
-        try {
-          // crude parse: eval-like extraction is avoided; we only reuse if file exists
-          // by requiring it through dynamic import.
-          return {};
-        } catch {
-          return {};
-        }
-      })()
-    : {};
+  const cityToRoads = {};
 
   /** @type {Set<string>} */
   const done = new Set();
@@ -278,4 +266,3 @@ main().catch(err => {
   console.error(err);
   process.exitCode = 1;
 });
-

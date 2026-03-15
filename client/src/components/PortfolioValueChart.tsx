@@ -11,11 +11,9 @@ import {
   YAxis,
 } from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/useLanguage";
 import { trpc } from "@/lib/trpc";
 
-import { ChartControls } from "./portfolio-value-chart/ChartControls";
 import { ChartTooltip } from "./portfolio-value-chart/ChartTooltip";
 import { SelectedPointDetails } from "./portfolio-value-chart/SelectedPointDetails";
 import {
@@ -29,26 +27,30 @@ import {
 
 import type { AxisLabelMode, TimeRange } from "./portfolio-value-chart/types";
 
-interface Props {
+type Props = {
   onAssetHover?: (assetId?: number) => void;
   highlightedAssetId?: number;
-}
+  isZh?: boolean;
+  timeRange?: TimeRange;
+};
 
 export default function PortfolioValueChart({
   onAssetHover,
   highlightedAssetId,
+  isZh,
+  timeRange,
 }: Props) {
   const { language } = useLanguage();
-  const isZh = language === "zh";
-  const [timeRange, setTimeRange] = useState<TimeRange>("24h");
-  const [axisLabelMode, setAxisLabelMode] = useState<AxisLabelMode>("auto");
+  const resolvedIsZh = isZh ?? language === "zh";
+  const resolvedTimeRange: TimeRange = timeRange ?? "24h";
+  const axisLabelMode: AxisLabelMode = "compact";
   const [selectedDataPoint, setSelectedDataPoint] = useState<number | null>(
     null
   );
   const lastHoveredIndexRef = useRef<number | null>(null);
 
   const historyQuery = trpc.portfolioHistory.get.useQuery({
-    days: getHistoryDays(timeRange),
+    days: getHistoryDays(resolvedTimeRange),
   });
 
   void onAssetHover;
@@ -60,8 +62,8 @@ export default function PortfolioValueChart({
     assetAddDayFormatted,
     assetAddDayValue,
   } = useMemo(
-    () => buildChartData(historyQuery.data ?? [], timeRange),
-    [historyQuery.data, timeRange]
+    () => buildChartData(historyQuery.data ?? [], resolvedTimeRange),
+    [historyQuery.data, resolvedTimeRange]
   );
   const stats = useMemo(() => buildChartStats(chartData), [chartData]);
   const { span, yDomainMin, yDomainMax } = useMemo(
@@ -104,169 +106,125 @@ export default function PortfolioValueChart({
   );
 
   return (
-    <div className="space-y-6">
+    <>
       <SelectedPointDetails
         selectedPointInfo={selectedPointInfo}
         formatUSD={formatUSD}
         onClear={() => setSelectedDataPoint(null)}
-        isZh={isZh}
+        isZh={resolvedIsZh}
       />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>
-              {isZh ? "组合价值走势" : "Portfolio Value Trend"}
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isZh
-                ? `${stats.dataPoints} 个数据点 · 点击图表查看详情`
-                : `${stats.dataPoints} data points • Click on chart to see details`}
-            </p>
-          </div>
-          <ChartControls
-            isZh={isZh}
-            timeRange={timeRange}
-            axisLabelMode={axisLabelMode}
-            onTimeRangeChange={range => {
-              setTimeRange(range);
-              setSelectedDataPoint(null);
-            }}
-            onAxisLabelModeChange={setAxisLabelMode}
-          />
-        </CardHeader>
-        <CardContent>
-          {historyQuery.isLoading ? (
-            <div className="h-80 flex items-center justify-center text-muted-foreground">
-              {isZh ? "正在加载图表数据..." : "Loading chart data..."}
-            </div>
-          ) : chartData.length === 0 ? (
-            <div className="h-80 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <p className="mb-2">
-                  {isZh
-                    ? "暂无组合价值历史"
-                    : "No portfolio value history available"}
-                </p>
-                <p className="text-xs">
-                  {isZh
-                    ? "添加资产后，系统将开始记录并在此展示组合价值走势。"
-                    : "Start adding assets to your portfolio and the chart will begin tracking your progress."}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={320}>
-              <AreaChart
-                data={chartData}
-                onClick={handleChartClick}
-                onMouseMove={handleChartMouseMove}
-                margin={{ top: 52, right: 20, bottom: 20, left: 64 }}
-              >
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor={trendColor}
-                      stopOpacity={0.35}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor={trendColor}
-                      stopOpacity={0.03}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  vertical={false}
-                  strokeDasharray="0"
-                  stroke="hsl(var(--border) / 0.4)"
+      {historyQuery.isLoading || chartData.length === 0 ? null : (
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart
+            data={chartData}
+            onClick={handleChartClick}
+            onMouseMove={handleChartMouseMove}
+            margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
+          >
+            <defs>
+              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor={trendColor}
+                  stopOpacity={0.35}
                 />
-                {chartData.length > 0 &&
-                  firstDataDateKey &&
-                  assetAddDayFormatted && (
-                    <ReferenceLine
-                      x={assetAddDayFormatted}
-                      stroke="hsl(var(--primary) / 0.5)"
-                      strokeDasharray="4 4"
-                      strokeWidth={1}
-                    />
-                  )}
-                {timeRange !== "24h" &&
-                  assetAddDayFormatted != null &&
-                  typeof assetAddDayValue === "number" && (
-                    <ReferenceDot
-                      x={assetAddDayFormatted}
-                      y={assetAddDayValue}
-                      r={4}
-                      fill="hsl(var(--primary))"
-                      stroke="hsl(var(--background))"
-                      strokeWidth={2}
-                    />
-                  )}
-                <XAxis
-                  dataKey="formattedDate"
-                  minTickGap={40}
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                  dy={10}
+                <stop
+                  offset="95%"
+                  stopColor={trendColor}
+                  stopOpacity={0.03}
                 />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                  domain={[yDomainMin, yDomainMax]}
-                  tickFormatter={value =>
-                    formatYAxisTick(value, axisLabelMode, span)
-                  }
-                  dx={-10}
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              vertical={false}
+              strokeDasharray="0"
+              stroke="hsl(var(--border) / 0.4)"
+            />
+            {chartData.length > 0 &&
+              firstDataDateKey &&
+              assetAddDayFormatted && (
+                <ReferenceLine
+                  x={assetAddDayFormatted}
+                  stroke="hsl(var(--primary) / 0.5)"
+                  strokeDasharray="4 4"
+                  strokeWidth={1}
                 />
-                <Tooltip
-                  content={<ChartTooltip formatUSD={formatUSD} isZh={isZh} />}
-                  cursor={{
-                    stroke: trendColor,
-                    strokeWidth: 1,
-                    strokeDasharray: "4 4",
-                  }}
+              )}
+            {resolvedTimeRange !== "24h" &&
+              assetAddDayFormatted != null &&
+              typeof assetAddDayValue === "number" && (
+                <ReferenceDot
+                  x={assetAddDayFormatted}
+                  y={assetAddDayValue}
+                  r={4}
+                  fill="hsl(var(--primary))"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="totalValue"
-                  stroke={trendColor}
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#colorValue)"
-                  isAnimationActive={true}
-                  dot={false}
-                  activeDot={
-                    timeRange === "24h"
-                      ? false
-                      : {
-                          r: 5,
-                          fill: trendColor,
-                          strokeWidth: 2,
-                          stroke: "hsl(var(--background))",
-                        }
-                  }
+              )}
+            <XAxis
+              dataKey="formattedDate"
+              minTickGap={40}
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              axisLine={false}
+              tickLine={false}
+              dy={10}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              axisLine={false}
+              tickLine={false}
+              domain={[yDomainMin, yDomainMax]}
+              tickFormatter={value =>
+                formatYAxisTick(value, axisLabelMode, span)
+              }
+              width={50}
+              dx={-5}
+            />
+            <Tooltip
+              content={<ChartTooltip formatUSD={formatUSD} isZh={resolvedIsZh} />}
+              cursor={{
+                stroke: trendColor,
+                strokeWidth: 1,
+                strokeDasharray: "4 4",
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="totalValue"
+              stroke={trendColor}
+              strokeWidth={2.5}
+              fillOpacity={1}
+              fill="url(#colorValue)"
+              isAnimationActive={true}
+              dot={false}
+              activeDot={
+                resolvedTimeRange === "24h"
+                  ? false
+                  : {
+                      r: 5,
+                      fill: trendColor,
+                      strokeWidth: 2,
+                      stroke: "hsl(var(--background))",
+                    }
+              }
+            />
+            {resolvedTimeRange !== "24h" &&
+              selectedDataPoint !== null &&
+              chartData[selectedDataPoint] && (
+                <ReferenceDot
+                  x={chartData[selectedDataPoint].formattedDate}
+                  y={chartData[selectedDataPoint].totalValue}
+                  r={5}
+                  fill={trendColor}
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
                 />
-                {timeRange !== "24h" &&
-                  selectedDataPoint !== null &&
-                  chartData[selectedDataPoint] && (
-                    <ReferenceDot
-                      x={chartData[selectedDataPoint].formattedDate}
-                      y={chartData[selectedDataPoint].totalValue}
-                      r={5}
-                      fill={trendColor}
-                      stroke="hsl(var(--background))"
-                      strokeWidth={2}
-                    />
-                  )}
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              )}
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </>
   );
 }
