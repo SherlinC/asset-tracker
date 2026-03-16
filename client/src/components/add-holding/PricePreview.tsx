@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import type { CurrencyDisplay, PriceData } from "./types";
 
 type Props = {
+  isZh: boolean;
   selectedAssetSymbol: string;
   isLoading: boolean;
   priceData: PriceData | undefined;
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function PricePreview({
+  isZh,
   selectedAssetSymbol,
   isLoading,
   priceData,
@@ -26,6 +28,21 @@ export function PricePreview({
   quantity,
   totalValue,
 }: Props) {
+  const text = isZh
+    ? {
+        fetchingPrice: "正在获取实时价格...",
+        currentPrice: "当前价格",
+        change24h: "24小时涨跌",
+        unableToFetchPrice: "无法获取价格",
+        totalValue: "总价值",
+      }
+    : {
+        fetchingPrice: "Fetching real-time price...",
+        currentPrice: "Current Price",
+        change24h: "24h Change",
+        unableToFetchPrice: "Unable to fetch price",
+        totalValue: "Total Value",
+      };
   if (!selectedAssetSymbol) {
     return null;
   }
@@ -36,13 +53,13 @@ export function PricePreview({
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Fetching real-time price...</span>
+            <span>{text.fetchingPrice}</span>
           </div>
         ) : priceData ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Current Price</p>
+                <p className="text-sm text-muted-foreground">{text.currentPrice}</p>
                 <p className="text-2xl font-bold">
                   {currencyDisplay === "USD" ? "$" : "¥"}
                   {currentPrice?.toFixed(2) || "0.00"}
@@ -75,19 +92,19 @@ export function PricePreview({
                     : "text-red-600 dark:text-red-400"
                 }`}
               >
-                24h Change: {priceData.change24h >= 0 ? "+" : ""}
+                {text.change24h}: {priceData.change24h >= 0 ? "+" : ""}
                 {priceData.change24h.toFixed(2)}%
               </p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Unable to fetch price</p>
+          <p className="text-sm text-muted-foreground">{text.unableToFetchPrice}</p>
         )}
       </Card>
 
       {currentPrice && quantity && (
         <Card className="border-accent/20 bg-accent/10 p-3">
-          <p className="text-sm text-muted-foreground">Total Value</p>
+          <p className="text-sm text-muted-foreground">{text.totalValue}</p>
           <p className="text-xl font-semibold">
             {currencyDisplay === "USD" ? "$" : "¥"}
             {totalValue.toFixed(2)}

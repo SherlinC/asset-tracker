@@ -1,6 +1,7 @@
 import { Globe2, Sparkles, WalletCards } from "lucide-react";
 
 import DashboardLayout from "@/components/DashboardLayout";
+import PageHeader from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -32,20 +33,14 @@ export default function WalletPlanningPage() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-8 pb-12">
-        <div className="space-y-4">
-          <Badge variant="outline" className="gap-2 px-3 py-1 text-xs">
-            <WalletCards className="h-3.5 w-3.5" />
-            {pick(WALLET_PLANNING_COPY.badge, isZh)}
-          </Badge>
-          <div className="space-y-3">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              {pick(WALLET_PLANNING_COPY.title, isZh)}
-            </h1>
-            <p className="max-w-4xl text-sm leading-7 text-muted-foreground sm:text-base">
-              {pick(WALLET_PLANNING_COPY.description, isZh)}
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title={pick(WALLET_PLANNING_COPY.title, isZh)}
+          description={pick(WALLET_PLANNING_COPY.description, isZh)}
+          pillLabel={{
+            icon: WalletCards,
+            text: pick(WALLET_PLANNING_COPY.badge, isZh),
+          }}
+        />
 
         <div className="grid gap-4 lg:grid-cols-3">
           {WALLET_PLANNING_SUMMARY_CARDS.map(card => {

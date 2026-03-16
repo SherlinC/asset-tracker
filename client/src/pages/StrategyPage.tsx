@@ -11,6 +11,7 @@ import {
 import { useMemo, useState } from "react";
 
 import DashboardLayout from "@/components/DashboardLayout";
+import PageHeader from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -533,24 +534,19 @@ export default function StrategyPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Brain className="h-4 w-4" />
-              {text.draft}
-            </div>
-            <h1 className="mt-2 text-3xl font-bold text-foreground">
-              {text.title}
-            </h1>
-            <p className="mt-1 max-w-3xl text-muted-foreground">
-              {text.subtitle}
-            </p>
-          </div>
-          <Badge variant="secondary" className="w-fit gap-1 px-3 py-1">
+        <PageHeader
+          title={text.title}
+          description={text.subtitle}
+          pillLabel={{
+            icon: Brain,
+            text: text.draft,
+          }}
+        >
+          <Badge variant="secondary" className="gap-1 px-3 py-1">
             <Sparkles className="h-3.5 w-3.5" />
             {text.model}
           </Badge>
-        </div>
+        </PageHeader>
 
         {portfolioSummary.isLoading ? (
           <Card>

@@ -42,10 +42,22 @@ export function AddHoldingSelectionSection({
   internationalFundQuery,
   stockQuery,
 }: AddHoldingSelectionProps) {
+  const text = isZh
+    ? {
+        assetType: "资产类型",
+        stockMarket: "股票市场",
+        fundType: "基金类型",
+      }
+    : {
+        assetType: "Asset type",
+        stockMarket: "Stock market",
+        fundType: "Fund type",
+      };
+
   return (
     <>
       <div className="space-y-2 min-w-0">
-        <Label>Asset type</Label>
+        <Label>{text.assetType}</Label>
         <Tabs
           value={selectedCategory}
           onValueChange={onCategoryChange}
@@ -69,7 +81,7 @@ export function AddHoldingSelectionSection({
 
       {selectedCategory === "stock" && (
         <div className="space-y-2 min-w-0">
-          <Label>Stock market</Label>
+          <Label>{text.stockMarket}</Label>
           <Select
             value={selectedStockSubCategory}
             onValueChange={onStockSubCategoryChange}
@@ -90,7 +102,7 @@ export function AddHoldingSelectionSection({
 
       {selectedCategory === "fund" && (
         <div className="space-y-2 min-w-0">
-          <Label>Fund type</Label>
+          <Label>{text.fundType}</Label>
           <Select
             value={selectedFundSubCategory}
             onValueChange={onFundSubCategoryChange}

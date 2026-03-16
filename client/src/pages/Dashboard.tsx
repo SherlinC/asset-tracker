@@ -1,11 +1,11 @@
-import { RefreshCw } from "lucide-react";
+import { PieChart, RefreshCw } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/_core/hooks/useAuth";
-import AddHoldingDialog from "@/components/AddHoldingDialog";
 import DashboardLayout from "@/components/DashboardLayout";
 import HoldingsList from "@/components/HoldingsList";
+import PageHeader from "@/components/PageHeader";
 import PortfolioSummary from "@/components/PortfolioSummary";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -16,7 +16,6 @@ export default function Dashboard() {
   const { loading: authLoading } = useAuth();
   const { language } = useLanguage();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [scrollToCategory, setScrollToCategory] = useState<string | null>(null);
   const hasRecordedThisSession = useRef(false);
   const text =
@@ -27,8 +26,8 @@ export default function Dashboard() {
           loading: "加载中...",
           title: "资产组合",
           subtitle: "实时追踪你的投资组合",
+          tag: "投资总览",
           refresh: "刷新",
-          addAsset: "添加资产",
           loadingPortfolio: "正在加载资产组合...",
           loadingHoldings: "正在加载持仓...",
         }
@@ -38,8 +37,8 @@ export default function Dashboard() {
           loading: "Loading...",
           title: "Asset Portfolio",
           subtitle: "Track your investments in real time",
+          tag: "Overview",
           refresh: "Refresh",
-          addAsset: "Add Asset",
           loadingPortfolio: "Loading portfolio...",
           loadingHoldings: "Loading holdings...",
         };
@@ -49,7 +48,6 @@ export default function Dashboard() {
     refetchInterval: 10 * 60 * 1000,
   });
   const holdings = trpc.holdings.list.useQuery();
-  const assets = trpc.assets.list.useQuery();
 
   const recordPortfolio = trpc.portfolioHistory.record.useMutation({
     onSuccess: () => {
@@ -62,7 +60,6 @@ export default function Dashboard() {
 
   const refreshDashboardData = async () => {
     await Promise.all([
-      assets.refetch(),
       holdings.refetch(),
       refetchPortfolioSummary(),
       utils.portfolioHistory.get.invalidate(),
@@ -111,28 +108,26 @@ export default function Dashboard() {
     <DashboardLayout exportHoldings={holdings.data}>
       <div className="space-y-6">
         {/* Header with refresh button */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">{text.title}</h1>
-            <p className="text-muted-foreground mt-1">{text.subtitle}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleRefresh}
-              disabled={isRefreshing || refreshPrices.isPending}
-              variant="outline"
-              size="sm"
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              {text.refresh}
-            </Button>
-            <Button onClick={() => setShowAddDialog(true)} size="sm">
-              {text.addAsset}
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title={text.title}
+          description={text.subtitle}
+          pillLabel={{
+            icon: PieChart,
+            text: text.tag,
+          }}
+        >
+          <Button
+            onClick={handleRefresh}
+            disabled={isRefreshing || refreshPrices.isPending}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            {text.refresh}
+          </Button>
+        </PageHeader>
 
         {/* Portfolio Summary */}
         {portfolioSummary.isLoading ? (
@@ -168,16 +163,6 @@ export default function Dashboard() {
             onScrollToCategoryHandled={() => setScrollToCategory(null)}
           />
         )}
-
-        {/* Add Holding Dialog */}
-        <AddHoldingDialog
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          assets={assets.data || []}
-          onSuccess={async () => {
-            await refreshDashboardData();
-          }}
-        />
       </div>
     </DashboardLayout>
   );

@@ -16,7 +16,6 @@ import type {
   CurrencyDisplay,
 } from "@/components/add-holding/types";
 import { useAddHoldingSearch } from "@/components/add-holding/useAddHoldingSearch";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -35,8 +34,29 @@ export default function AddHoldingDialog({
   onSuccess,
 }: Props) {
   const { language } = useLanguage();
-  const [, setLocation] = useLocation();
   const isZh = language === "zh";
+  const [, setLocation] = useLocation();
+
+  const text = isZh
+    ? {
+        title: "添加资产",
+        description: "添加新资产到您的投资组合，实时价格",
+        importExcel: "批量导入",
+        errorSelectAll: "请选择资产类型、资产和数量",
+        errorInvalidAsset: "选择的资产无效",
+        success: "持仓添加成功",
+        errorAdd: "添加持仓失败：",
+      }
+    : {
+        title: "Add Asset",
+        description: "Add a new asset to your portfolio with real-time pricing",
+        importExcel: "Bulk Import",
+        errorSelectAll: "Please select category, asset and quantity",
+        errorInvalidAsset: "Invalid asset selected",
+        success: "Holding added successfully",
+        errorAdd: "Failed to add holding: ",
+      };
+
   const utils = trpc.useUtils();
   const [selectedCategory, setSelectedCategory] =
     useState<AssetCategory>("stock");
@@ -82,12 +102,12 @@ export default function AddHoldingDialog({
         utils.assets.list.invalidate(),
       ]);
       await onSuccess();
-      toast.success("Holding added successfully");
+      toast.success(text.success);
       resetForm();
       onOpenChange(false);
     },
     onError: error => {
-      toast.error(`Failed to add holding: ${error.message}`);
+      toast.error(`${text.errorAdd}${error.message}`);
     },
   });
 
@@ -175,7 +195,7 @@ export default function AddHoldingDialog({
     event.preventDefault();
 
     if (!selectedCategory || !selectedAssetSymbol || !quantity) {
-      toast.error("Please select category, asset and quantity");
+      toast.error(text.errorSelectAll);
       return;
     }
 
@@ -188,7 +208,7 @@ export default function AddHoldingDialog({
           ALL_DEFAULT_ASSETS.find(item => item.symbol === selectedAssetSymbol);
 
         if (!assetToCreate) {
-          toast.error("Invalid asset selected");
+          toast.error(text.errorInvalidAsset);
           return;
         }
 
@@ -220,24 +240,11 @@ export default function AddHoldingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] overflow-hidden">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <DialogTitle>Add New Holding</DialogTitle>
-              <DialogDescription>
-                Add a new asset to your portfolio with real-time pricing
-              </DialogDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onOpenChange(false);
-                setLocation(ROUTE_PATHS.importPreview);
-              }}
-            >
-              {isZh ? "导入 Excel" : "Import Excel"}
-            </Button>
+          <div>
+            <DialogTitle>{text.title}</DialogTitle>
+            <DialogDescription>
+              {text.description}
+            </DialogDescription>
           </div>
         </DialogHeader>
 
@@ -266,6 +273,11 @@ export default function AddHoldingDialog({
           />
 
           <AddHoldingDetailsSection
+            isZh={isZh}
+            onImportExcel={() => {
+              onOpenChange(false);
+              setLocation(ROUTE_PATHS.importPreview);
+            }}
             selectedAssetSymbol={selectedAssetSymbol}
             priceLoading={fetchPrice.isLoading}
             priceData={priceData}

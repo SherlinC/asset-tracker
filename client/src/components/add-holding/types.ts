@@ -55,6 +55,8 @@ export type AddHoldingSelectionProps = {
 };
 
 export type AddHoldingDetailsProps = {
+  isZh: boolean;
+  onImportExcel: () => void;
   selectedAssetSymbol: string;
   priceLoading: boolean;
   priceData: PriceData | undefined;

@@ -419,6 +419,20 @@ async function fetchStockPricesFromFinnhub(
   return quotes;
 }
 
+const YAHOO_FIRST_STOCK_SUFFIXES = [".SS", ".SZ", ".BJ", ".HK"];
+
+function normalizeStockSymbolForRouting(symbol: string) {
+  return symbol.trim().toUpperCase();
+}
+
+function shouldPreferYahooForStockSymbol(symbol: string) {
+  const normalizedSymbol = normalizeStockSymbolForRouting(symbol);
+
+  return YAHOO_FIRST_STOCK_SUFFIXES.some(suffix =>
+    normalizedSymbol.endsWith(suffix)
+  );
+}
+
 const YAHOO_CHART_HOSTS = [
   "https://query1.finance.yahoo.com",
   "https://query2.finance.yahoo.com",
@@ -503,22 +517,39 @@ async function fetchStockPricesFromYahoo(
 }
 
 /**
- * 股票价格：Finnhub(可选) -> Yahoo（美股/港股/日股/A股）-> mock 兜底
- * 配置 FINNHUB_API_KEY 后优先用 Finnhub（国内更稳定）；Yahoo 支持 0700.HK、7203.T、000001.SZ 等
+ * 股票价格：按市场路由到 Finnhub / Yahoo，再走 mock 兜底
+ * 美股及美股类 ETF 优先 Finnhub；港股/A股/北交所优先 Yahoo，避免非美股误走 USD 路径
  */
 export async function fetchStockPrices(
   symbols: string[] = ["AAPL", "GOOGL", "TSLA"]
 ): Promise<Record<string, StockQuote>> {
   if (symbols.length === 0) return {};
+
   let quotes: Record<string, StockQuote> = {};
-  if (ENV.finnhubApiKey) {
-    quotes = await fetchStockPricesFromFinnhub(symbols, ENV.finnhubApiKey);
+  const yahooFirstSymbols = symbols.filter(shouldPreferYahooForStockSymbol);
+  const finnhubFirstSymbols = symbols.filter(
+    symbol => !shouldPreferYahooForStockSymbol(symbol)
+  );
+
+  if (ENV.finnhubApiKey && finnhubFirstSymbols.length > 0) {
+    quotes = await fetchStockPricesFromFinnhub(
+      finnhubFirstSymbols,
+      ENV.finnhubApiKey
+    );
   }
-  const missing = symbols.filter(s => !quotes[s]);
-  if (missing.length > 0) {
-    const yahooQuotes = await fetchStockPricesFromYahoo(missing);
+
+  const yahooSymbols = Array.from(
+    new Set([
+      ...yahooFirstSymbols,
+      ...finnhubFirstSymbols.filter(symbol => !quotes[symbol]),
+    ])
+  );
+
+  if (yahooSymbols.length > 0) {
+    const yahooQuotes = await fetchStockPricesFromYahoo(yahooSymbols);
     for (const s of Object.keys(yahooQuotes)) quotes[s] = yahooQuotes[s];
   }
+
   const stillMissing = symbols.filter(s => !quotes[s]);
   if (stillMissing.length > 0) {
     const fallback = getStockPricesFallback(stillMissing);

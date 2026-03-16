@@ -42,7 +42,6 @@ export const CATEGORY_ORDER: AssetCategory[] = [
   "fund",
   "crypto",
   "currency",
-  "precious_metals",
 ];
 
 export const STOCK_SUBCATEGORY_ORDER: StockSubCategory[] = [

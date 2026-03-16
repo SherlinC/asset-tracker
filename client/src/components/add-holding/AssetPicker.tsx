@@ -91,15 +91,20 @@ export function AssetPicker({
         : internationalFundSearchInput
       : stockSearchInput;
 
-  const placeholder =
-    selectedCategory === "fund"
+  const placeholder = isZh
+    ? selectedCategory === "fund"
       ? selectedFundSubCategory === "china_fund"
         ? "输入基金代码或名称搜索..."
         : "输入国际基金名称、ETF 代码或 ISIN 搜索..."
-      : "输入股票代码、名称或拼音搜索...";
+      : "输入股票代码、名称或拼音搜索..."
+    : selectedCategory === "fund"
+      ? selectedFundSubCategory === "china_fund"
+        ? "Search fund code or name..."
+        : "Search international fund name, ETF code or ISIN..."
+      : "Search stock symbol, name or pinyin...";
 
-  const emptyText =
-    selectedCategory === "fund" && selectedFundSubCategory === "china_fund"
+  const emptyText = isZh
+    ? selectedCategory === "fund" && selectedFundSubCategory === "china_fund"
       ? "未找到基金，请换关键词"
       : selectedCategory === "fund" &&
           selectedFundSubCategory === "international_fund"
@@ -111,11 +116,24 @@ export function AssetPicker({
           ? stockQuery.trim()
             ? "未找到A股，请换代码、名称或拼音"
             : "请输入股票代码、名称或拼音搜索A股"
+          : "未找到资产"
+    : selectedCategory === "fund" && selectedFundSubCategory === "china_fund"
+      ? "No fund found, try different keywords"
+      : selectedCategory === "fund" &&
+          selectedFundSubCategory === "international_fund"
+        ? internationalFundQuery.trim()
+          ? "No international fund found, try name, ETF code or ISIN"
+          : "Search international fund name, ETF code or ISIN"
+        : selectedCategory === "stock" &&
+            selectedStockSubCategory === "cn_stock"
+          ? stockQuery.trim()
+            ? "No A-share found, try symbol, name or pinyin"
+            : "Search stock symbol, name or pinyin for A-shares"
           : "No asset found.";
 
   return (
     <div className="space-y-2 min-w-0">
-      <Label htmlFor="asset">Asset</Label>
+      <Label htmlFor="asset">{isZh ? "资产" : "Asset"}</Label>
       <Popover open={assetComboboxOpen} onOpenChange={setAssetComboboxOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -146,8 +164,12 @@ export function AssetPicker({
             ) : (
               <span className="truncate">
                 {selectedCategory
-                  ? "Search by symbol or name..."
-                  : "Select type first"}
+                  ? isZh
+                    ? "按代码或名称搜索..."
+                    : "Search by symbol or name..."
+                  : isZh
+                    ? "请先选择类型"
+                    : "Select type first"}
               </span>
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

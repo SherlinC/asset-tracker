@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
+import AddHoldingDialog from "@/components/AddHoldingDialog";
 import type { Holding } from "@/components/holdings-list/types";
 import {
   Sidebar,
@@ -23,7 +24,6 @@ import { getLoginUrl, isOAuthConfigured } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
 import { downloadCurrentHoldingsWorkbook } from "@/lib/excelExport";
-import { downloadAssetTemplate } from "@/lib/excelTemplate";
 import {
   DASHBOARD_NAV_ITEMS,
   ROUTE_PATHS,
@@ -146,8 +146,9 @@ function DashboardLayoutContent({
   const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
     enabled: exportHoldings === undefined,
   });
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const assetsQuery = trpc.assets.list.useQuery();
   const [isExportingData, setIsExportingData] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -166,11 +167,8 @@ function DashboardLayoutContent({
         collapse: "收起侧边栏",
         navigation: "导航",
         menu: "菜单",
-        downloadTemplate: "下载模板",
         exportCurrentData: "导出资产",
         importExcel: "添加资产",
-        downloadStarted: "模板已开始下载",
-        downloadFailed: "模板下载失败，请稍后重试。",
         exportLoading: "正在加载可导出的持仓数据，请稍后重试。",
         exportStarted: "当前数据已开始导出",
         exportFailed: "当前数据导出失败，请稍后重试。",
@@ -180,30 +178,13 @@ function DashboardLayoutContent({
         collapse: "Collapse sidebar",
         navigation: "Navigation",
         menu: "Menu",
-        downloadTemplate: "Download Template",
         exportCurrentData: "Export Assets",
         importExcel: "Add Asset",
-        downloadStarted: "Template download started",
-        downloadFailed: "Failed to download template. Please try again.",
         exportLoading:
           "Exportable holdings are still loading. Please try again.",
         exportStarted: "Current data export started",
         exportFailed: "Failed to export current data. Please try again.",
       };
-
-  const handleDownloadTemplate = async () => {
-    setIsDownloadingTemplate(true);
-
-    try {
-      downloadAssetTemplate(language);
-      toast.success(text.downloadStarted);
-    } catch (error) {
-      console.error("Failed to download asset template:", error);
-      toast.error(text.downloadFailed);
-    } finally {
-      setIsDownloadingTemplate(false);
-    }
-  };
 
   const handleExportCurrentData = async () => {
     if (isExportDataLoading) {
@@ -259,7 +240,9 @@ function DashboardLayoutContent({
             <SidebarMenu className="px-2 py-1">
               <SidebarMenuItem>
                 <Button
-                  onClick={() => setLocation(ROUTE_PATHS.importPreview)}
+                  onClick={() => {
+                    setShowAddDialog(true);
+                  }}
                   variant="default"
                   size="sm"
                   className="w-full justify-start gap-2 h-10"
@@ -302,22 +285,19 @@ function DashboardLayoutContent({
                   <Download className="h-4 w-4" />
                   <span>{text.exportCurrentData}</span>
                 </Button>
-                <Button
-                  onClick={handleDownloadTemplate}
-                  disabled={isDownloadingTemplate}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>{text.downloadTemplate}</span>
-                </Button>
               </div>
             </div>
           </SidebarFooter>
         </Sidebar>
         <SidebarRail />
       </div>
+
+      <AddHoldingDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        assets={assetsQuery.data || []}
+        onSuccess={async () => {}}
+      />
 
       <SidebarInset>
         {isMobile && (
