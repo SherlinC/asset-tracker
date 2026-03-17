@@ -21,7 +21,8 @@ export default function Dashboard() {
   const text =
     language === "zh"
       ? {
-          refreshed: "价格刷新成功",
+          refreshed: "价格和汇率已刷新",
+          refreshedPartial: "部分资产未拿到实时价格，已回退缓存",
           refreshFailed: "刷新价格失败：",
           loading: "加载中...",
           title: "资产组合",
@@ -32,7 +33,9 @@ export default function Dashboard() {
           loadingHoldings: "正在加载持仓...",
         }
       : {
-          refreshed: "Prices refreshed successfully",
+          refreshed: "Prices and FX rates refreshed",
+          refreshedPartial:
+            "Some assets could not fetch live prices and fell back to cache",
           refreshFailed: "Failed to refresh prices:",
           loading: "Loading...",
           title: "Asset Portfolio",
@@ -77,8 +80,17 @@ export default function Dashboard() {
 
   // Mutations
   const refreshPrices = trpc.prices.refresh.useMutation({
-    onSuccess: () => {
-      toast.success(text.refreshed);
+    onSuccess: data => {
+      if (data.emptyCount > 0 || data.cacheCount > 0) {
+        toast.warning(
+          `${text.refreshedPartial} (${data.liveCount}/${data.assetCount} live, USD/CNY ${data.exchangeRate.toFixed(4)})`
+        );
+      } else {
+        toast.success(
+          `${text.refreshed} (${data.assetCount}/${data.assetCount}, USD/CNY ${data.exchangeRate.toFixed(4)})`
+        );
+      }
+
       void refreshDashboardData();
     },
     onError: error => {
@@ -135,17 +147,7 @@ export default function Dashboard() {
             {text.loadingPortfolio}
           </div>
         ) : (
-          <PortfolioSummary
-            data={portfolioSummary.data}
-            onCategoryClick={type => {
-              setScrollToCategory(type);
-              setTimeout(() => {
-                document
-                  .getElementById("holdings-section")
-                  ?.scrollIntoView({ behavior: "smooth" });
-              }, 0);
-            }}
-          />
+          <PortfolioSummary data={portfolioSummary.data} />
         )}
 
         {/* Holdings List */}

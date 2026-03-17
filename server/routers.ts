@@ -96,6 +96,51 @@ async function recordPortfolioValue(userId: number) {
   await db.recordPortfolioValue(userId, totalValueUSD.toString());
 }
 
+async function refreshUserMarketData(userId: number) {
+  const holdings = await db.getUserHoldings(userId);
+  const exchangeRates = await priceService.fetchExchangeRates();
+
+  if (holdings.length === 0) {
+    return {
+      success: true as const,
+      assetCount: 0,
+      liveCount: 0,
+      cacheCount: 0,
+      emptyCount: 0,
+      exchangeRate: exchangeRates.USD || DEFAULT_USD_CNY_RATE,
+    };
+  }
+
+  const results = await Promise.all(
+    holdings.map(async holding => {
+      const price = await fetchAssetPriceWithFallback(
+        holding.asset.id,
+        holding.asset.symbol,
+        holding.asset.type,
+        exchangeRates
+      );
+
+      return {
+        symbol: holding.asset.symbol,
+        source: price.source,
+      };
+    })
+  );
+
+  const liveCount = results.filter(result => result.source === "live").length;
+  const cacheCount = results.filter(result => result.source === "cache").length;
+  const emptyCount = results.filter(result => result.source === "empty").length;
+
+  return {
+    success: true as const,
+    assetCount: holdings.length,
+    liveCount,
+    cacheCount,
+    emptyCount,
+    exchangeRate: exchangeRates.USD || DEFAULT_USD_CNY_RATE,
+  };
+}
+
 export const appRouter = router({
   system: systemRouter,
   fund: router({
@@ -326,9 +371,9 @@ export const appRouter = router({
         );
       }),
 
-    // Refresh all prices (placeholder)
-    refresh: protectedProcedure.mutation(async () => {
-      return { success: true };
+    // Refresh all prices for current user's holdings
+    refresh: protectedProcedure.mutation(async ({ ctx }) => {
+      return refreshUserMarketData(ctx.user.id);
     }),
 
     // Get exchange rates

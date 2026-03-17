@@ -7,6 +7,7 @@ export type AssetPriceResult = {
   priceUSD: number;
   priceCNY: number;
   change24h: number;
+  source: "live" | "cache" | "empty";
 };
 
 function parseCachedNumber(value: string | null | undefined): number {
@@ -36,23 +37,35 @@ export async function fetchAssetPriceWithFallback(
       );
     }
 
-    return livePrice;
+    return {
+      ...livePrice,
+      source: "live",
+    };
   }
 
   if (assetId == null) {
-    return livePrice;
+    return {
+      ...livePrice,
+      source: "empty",
+    };
   }
 
   const cached = await db.getPriceByAssetId(assetId);
   if (!cached) {
-    return livePrice;
+    return {
+      ...livePrice,
+      source: "empty",
+    };
   }
 
   const cachedPriceUSD = parseCachedNumber(cached.price);
   const cachedChange24h = parseCachedNumber(cached.change24h);
 
   if (cachedPriceUSD <= 0) {
-    return livePrice;
+    return {
+      ...livePrice,
+      source: "empty",
+    };
   }
 
   const rates = exchangeRates ?? (await priceService.fetchExchangeRates());
@@ -62,5 +75,6 @@ export async function fetchAssetPriceWithFallback(
     priceUSD: cachedPriceUSD,
     priceCNY: cachedPriceUSD * usdToCny,
     change24h: cachedChange24h,
+    source: "cache",
   };
 }

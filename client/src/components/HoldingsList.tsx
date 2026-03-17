@@ -16,6 +16,8 @@ import { trpc } from "@/lib/trpc";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
+import { getColorByType, TYPE_LABELS_ZH } from "./portfolio-summary/constants";
+import { buildTypeAllocation } from "./portfolio-summary/utils";
 import { CATEGORY_LABELS, CATEGORY_LABELS_EN } from "./holdings-list/constants";
 import { HoldingsCategoryTable } from "./holdings-list/HoldingsCategoryTable";
 import { HoldingsEditDialog } from "./holdings-list/HoldingsEditDialog";
@@ -94,6 +96,72 @@ export default function HoldingsList({
 
   const defaultTab =
     orderedCategories.length > 0 ? orderedCategories[0] : "other";
+  const currentTab = activeTab ?? defaultTab;
+
+  const topCategoryCards = useMemo(() => {
+    const typeAllocation = buildTypeAllocation(portfolioAssets);
+    const definitions = [
+      {
+        type: "stock",
+        categories: ["a_stock", "hk_stock", "us_stock"] as const,
+      },
+      {
+        type: "fund",
+        categories: ["fund", "us_etf"] as const,
+      },
+      {
+        type: "crypto",
+        categories: ["crypto"] as const,
+      },
+      {
+        type: "currency",
+        categories: ["currency"] as const,
+      },
+    ];
+
+    return definitions
+      .map(item => {
+        const valueUSD = typeAllocation[item.type] ?? 0;
+        const convertedValue =
+          currencyDisplay === "CNY" ? valueUSD * exchangeRate : valueUSD;
+        const percentage =
+          totalPortfolioUSD > 0 ? (valueUSD / totalPortfolioUSD) * 100 : 0;
+        const holdingCount = item.categories.reduce(
+          (sum, category) =>
+            sum + (holdingsByCategory.get(category)?.length ?? 0),
+          0
+        );
+        const targetTab = item.categories.find(category =>
+          orderedCategories.includes(category)
+        );
+
+        return {
+          ...item,
+          label: isZh
+            ? (TYPE_LABELS_ZH[item.type] ?? item.type)
+            : item.type.charAt(0).toUpperCase() + item.type.slice(1),
+          valueUSD,
+          convertedValue,
+          percentage,
+          holdingCount,
+          targetTab: targetTab ?? null,
+          isActive:
+            targetTab !== undefined && targetTab !== null
+              ? item.categories.some(category => category === currentTab)
+              : false,
+        };
+      })
+      .filter(item => item.valueUSD > 0 && item.targetTab !== null);
+  }, [
+    currencyDisplay,
+    currentTab,
+    exchangeRate,
+    holdingsByCategory,
+    isZh,
+    orderedCategories,
+    portfolioAssets,
+    totalPortfolioUSD,
+  ]);
 
   useEffect(() => {
     const target = resolveScrollTarget(scrollToCategory, orderedCategories);
@@ -165,8 +233,52 @@ export default function HoldingsList({
           </div>
         </CardHeader>
         <CardContent>
+          {topCategoryCards.length > 0 ? (
+            <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+              {topCategoryCards.map(item => (
+                <button
+                  key={item.type}
+                  type="button"
+                  onClick={() => setActiveTab(item.targetTab)}
+                  className={`rounded-lg border border-transparent p-3 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring flex flex-col items-center justify-center gap-2 ${
+                    item.isActive
+                      ? "border-border bg-muted/50"
+                      : "hover:border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-3 w-3 rounded-full"
+                      style={{ backgroundColor: getColorByType(item.type) }}
+                    />
+                    <p className="text-sm font-medium capitalize text-muted-foreground">
+                      {item.label}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-base font-semibold text-foreground">
+                      {item.percentage.toFixed(2)}%
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {currencyDisplay === "CNY" ? "¥" : "$"}
+                      {item.convertedValue.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground/80">
+                      {isZh
+                        ? `${item.holdingCount} 个资产`
+                        : `${item.holdingCount} assets`}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <Tabs
-            value={activeTab ?? defaultTab}
+            value={currentTab}
             onValueChange={setActiveTab}
             className="w-full"
           >

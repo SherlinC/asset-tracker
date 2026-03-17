@@ -1,4 +1,11 @@
-import { Download, PanelLeft, Plus } from "lucide-react";
+import {
+  ChevronsUpDown,
+  Download,
+  Languages,
+  LogOut,
+  PanelLeft,
+  Plus,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -6,6 +13,20 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AddHoldingDialog from "@/components/AddHoldingDialog";
 import type { Holding } from "@/components/holdings-list/types";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -35,6 +56,13 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
 const SIDEBAR_WIDTH = 188;
+
+const SIMULATED_USER = {
+  name: "Investor",
+  email: "investor@example.com",
+  avatar: "/avatars/01.png",
+  initials: "IN",
+};
 
 export default function DashboardLayout({
   children,
@@ -141,8 +169,9 @@ function DashboardLayoutContent({
   children: React.ReactNode;
   exportHoldings?: Holding[];
 }) {
-  const { language } = useLanguage();
+  const { language, toggleLanguage } = useLanguage();
   const isZh = language === "zh";
+  const { logout } = useAuth();
   const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
     enabled: exportHoldings === undefined,
   });
@@ -273,20 +302,83 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
-            <div className="space-y-2">
-              <div className="space-y-2">
-                <Button
-                  onClick={handleExportCurrentData}
-                  disabled={isExportingData || isExportDataLoading}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>{text.exportCurrentData}</span>
-                </Button>
-              </div>
+            <div className="mb-2">
+              <Button
+                onClick={handleExportCurrentData}
+                disabled={isExportingData || isExportDataLoading}
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2"
+              >
+                <Download className="h-4 w-4" />
+                <span>{text.exportCurrentData}</span>
+              </Button>
             </div>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size="lg"
+                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    >
+                      <Avatar className="h-8 w-8 rounded-lg">
+                        <AvatarImage
+                          src={SIMULATED_USER.avatar}
+                          alt={SIMULATED_USER.name}
+                        />
+                        <AvatarFallback className="rounded-lg">
+                          {SIMULATED_USER.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-semibold">
+                          {SIMULATED_USER.name}
+                        </span>
+                      </div>
+                      <ChevronsUpDown className="ml-auto size-4" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                    side="right"
+                    align="end"
+                    sideOffset={4}
+                  >
+                    <DropdownMenuLabel className="p-0 font-normal">
+                      <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                        <Avatar className="h-8 w-8 rounded-lg">
+                          <AvatarImage
+                            src={SIMULATED_USER.avatar}
+                            alt={SIMULATED_USER.name}
+                          />
+                          <AvatarFallback className="rounded-lg">
+                            {SIMULATED_USER.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="grid flex-1 text-left text-sm leading-tight">
+                          <span className="truncate font-semibold">
+                            {SIMULATED_USER.name}
+                          </span>
+                        </div>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={toggleLanguage}>
+                        <Languages className="mr-2 size-4" />
+                        {language === "zh" ? "Switch to English" : "切换为中文"}
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => logout()}>
+                      <LogOut className="mr-2 size-4" />
+                      {isZh ? "退出登录" : "Log out"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarFooter>
         </Sidebar>
         <SidebarRail />

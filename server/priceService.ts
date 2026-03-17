@@ -62,6 +62,37 @@ function normalizeCnyBaseRates(rates: Record<string, number>) {
   };
 }
 
+function getMedian(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1] + sorted[middle]) / 2;
+  }
+
+  return sorted[middle];
+}
+
+function mergeExchangeRateCandidates(candidates: Record<string, number>[]) {
+  const currencyKeys = ["USD", "HKD", "EUR", "JPY", "RUB", "CNY"];
+
+  return Object.fromEntries(
+    currencyKeys.map(currency => {
+      const values = candidates
+        .map(candidate => candidate[currency])
+        .filter(
+          (value): value is number => Number.isFinite(value) && value > 0
+        );
+
+      if (values.length === 0) {
+        return [currency, mockExchangeRates[currency] ?? 1];
+      }
+
+      return [currency, getMedian(values)];
+    })
+  ) as Record<string, number>;
+}
+
 async function fetchExchangeRatesFromExchangeRateApi() {
   const response = await fetch(
     "https://api.exchangerate-api.com/v4/latest/CNY",
@@ -208,10 +239,6 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
   try {
     const providers = [
       {
-        name: "Open ER API",
-        fetchRates: fetchExchangeRatesFromOpenErApi,
-      },
-      {
         name: "Frankfurter",
         fetchRates: fetchExchangeRatesFromFrankfurter,
       },
@@ -219,24 +246,51 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
         name: "ExchangeRate-API",
         fetchRates: fetchExchangeRatesFromExchangeRateApi,
       },
+      {
+        name: "Open ER API",
+        fetchRates: fetchExchangeRatesFromOpenErApi,
+      },
     ] as const;
 
-    for (const provider of providers) {
-      try {
+    const settled = await Promise.allSettled(
+      providers.map(async provider => {
         const result = await provider.fetchRates();
 
         if (result) {
           console.log(
             `[${provider.name}] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}, RUB/CNY: ${result.RUB.toFixed(4)}`
           );
-          return result;
         }
-      } catch (error) {
-        console.warn(
-          `[${provider.name}] Failed to fetch exchange rates:`,
-          error
-        );
+
+        return {
+          name: provider.name,
+          result,
+        };
+      })
+    );
+
+    const successfulResults = settled.flatMap(item => {
+      if (item.status === "fulfilled" && item.value.result) {
+        return [item.value.result];
       }
+
+      if (item.status === "rejected") {
+        console.warn("[ExchangeRates] Provider failed:", item.reason);
+      }
+
+      return [];
+    });
+
+    if (successfulResults.length === 1) {
+      return successfulResults[0];
+    }
+
+    if (successfulResults.length > 1) {
+      const merged = mergeExchangeRateCandidates(successfulResults);
+      console.log(
+        `[ExchangeRates] Consensus USD/CNY: ${merged.USD.toFixed(4)}, HKD/CNY: ${merged.HKD.toFixed(4)}, EUR/CNY: ${merged.EUR.toFixed(4)}, RUB/CNY: ${merged.RUB.toFixed(4)}`
+      );
+      return merged;
     }
   } catch (error) {
     console.error("Error fetching exchange rates from API:", error);

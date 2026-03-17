@@ -20,6 +20,7 @@ export default function NoodlePage() {
         subtitle: "把你的总资产翻译成一块深色生存面板。",
         refresh: "刷新",
         refreshed: "生存面板已刷新",
+        refreshedPartial: "部分资产未拿到实时价格，已回退缓存",
         refreshFailed: "刷新失败：",
         loading: "正在加载坐吃山空面板...",
         hint: "这是一个深色专注页面，用来感受财富与生活成本的关系。",
@@ -29,6 +30,8 @@ export default function NoodlePage() {
         subtitle: "Translate your net worth into a dark survival console.",
         refresh: "Refresh",
         refreshed: "Consumption console refreshed",
+        refreshedPartial:
+          "Some assets could not fetch live prices and fell back to cache",
         refreshFailed: "Refresh failed: ",
         loading: "Loading Spendover...",
         hint: "This is a dark focus page designed to feel the relationship between wealth and living costs.",
@@ -39,8 +42,17 @@ export default function NoodlePage() {
   });
 
   const refreshPrices = trpc.prices.refresh.useMutation({
-    onSuccess: async () => {
-      toast.success(text.refreshed);
+    onSuccess: async data => {
+      if (data.emptyCount > 0 || data.cacheCount > 0) {
+        toast.warning(
+          `${text.refreshedPartial} (${data.liveCount}/${data.assetCount} live, USD/CNY ${data.exchangeRate.toFixed(4)})`
+        );
+      } else {
+        toast.success(
+          `${text.refreshed} (${data.assetCount}/${data.assetCount}, USD/CNY ${data.exchangeRate.toFixed(4)})`
+        );
+      }
+
       await Promise.all([
         portfolioSummary.refetch(),
         utils.portfolioHistory.get.invalidate(),
