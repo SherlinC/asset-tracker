@@ -11,6 +11,7 @@ export function AddHoldingDetailsSection({
   isZh,
   onImportExcel,
   selectedAssetSymbol,
+  selectedCategory,
   priceLoading,
   priceData,
   currencyDisplay,
@@ -20,6 +21,8 @@ export function AddHoldingDetailsSection({
   onQuantityChange,
   costBasis,
   onCostBasisChange,
+  annualInterestRate,
+  onAnnualInterestRateChange,
   totalValue,
   onCancel,
   isSubmitting,
@@ -32,6 +35,8 @@ export function AddHoldingDetailsSection({
         quantityPlaceholder: "输入数量",
         costBasis: "成本（可选）",
         costBasisPlaceholder: "输入成本（人民币）",
+        annualInterestRate: "定期存款年利率（可选）",
+        annualInterestRatePlaceholder: "输入年利率，例如 2.35 表示 2.35%",
         cancel: "取消",
         adding: "添加中...",
         addHolding: "添加",
@@ -42,6 +47,8 @@ export function AddHoldingDetailsSection({
         quantityPlaceholder: "Enter quantity",
         costBasis: "Cost Basis (Optional)",
         costBasisPlaceholder: "Enter cost basis in CNY",
+        annualInterestRate: "Annual Deposit Rate (Optional)",
+        annualInterestRatePlaceholder: "Enter annual rate, e.g. 2.35 for 2.35%",
         cancel: "Cancel",
         adding: "Adding...",
         addHolding: "Add",
@@ -74,6 +81,20 @@ export function AddHoldingDetailsSection({
         />
       </div>
 
+      {selectedCategory === "currency" ? (
+        <div className="space-y-2 min-w-0">
+          <Label htmlFor="annualInterestRate">{text.annualInterestRate}</Label>
+          <Input
+            id="annualInterestRate"
+            type="number"
+            step="0.01"
+            placeholder={text.annualInterestRatePlaceholder}
+            value={annualInterestRate}
+            onChange={event => onAnnualInterestRateChange(event.target.value)}
+          />
+        </div>
+      ) : null}
+
       <div className="space-y-2 min-w-0">
         <Label htmlFor="costBasis">{text.costBasis}</Label>
         <Input
@@ -87,11 +108,7 @@ export function AddHoldingDetailsSection({
       </div>
 
       <div className="flex gap-2 justify-between pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onImportExcel}
-        >
+        <Button type="button" variant="outline" onClick={onImportExcel}>
           {text.importExcel}
         </Button>
         <div className="flex gap-2">

@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 
 import { PortfolioValueCard } from "@/components/portfolio-summary/PortfolioValueCard";
+import type {
+  CurrencyDisplay,
+  PortfolioData,
+} from "@/components/portfolio-summary/types";
+import { aggregateAssets } from "@/components/portfolio-summary/utils";
+import PortfolioValueChart from "@/components/PortfolioValueChart";
 import {
   Select,
   SelectContent,
@@ -8,15 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type {
-  CurrencyDisplay,
-  PortfolioData,
-} from "@/components/portfolio-summary/types";
-import { aggregateAssets } from "@/components/portfolio-summary/utils";
-import PortfolioValueChart from "@/components/PortfolioValueChart";
 import { useLanguage } from "@/hooks/useLanguage";
+import { usePortfolioHistory } from "@/hooks/usePortfolioHistory";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
+
 import type { TimeRange } from "./portfolio-value-chart/types";
 
 interface Props {
@@ -29,6 +31,7 @@ export default function PortfolioSummary({ data }: Props) {
   const [currencyDisplay, setCurrencyDisplay] =
     useState<CurrencyDisplay>("USD");
   const [timeRange, setTimeRange] = useState<TimeRange>("24h");
+  const portfolioHistory = usePortfolioHistory(timeRange);
   const assets = useMemo(() => data?.assets ?? [], [data?.assets]);
 
   const aggregatedAssets = useMemo(
@@ -52,12 +55,14 @@ export default function PortfolioSummary({ data }: Props) {
         { value: "7d", label: "1周" },
         { value: "30d", label: "1月" },
         { value: "1y", label: "1年" },
+        { value: "all", label: "全部" },
       ]
     : [
         { value: "24h", label: "1D" },
         { value: "7d", label: "1W" },
         { value: "30d", label: "1M" },
         { value: "1y", label: "1Y" },
+        { value: "all", label: "All" },
       ];
 
   return (
@@ -77,7 +82,7 @@ export default function PortfolioSummary({ data }: Props) {
               value={timeRange}
               onValueChange={value => setTimeRange(value as TimeRange)}
             >
-              <SelectTrigger className="h-8 w-[92px] text-xs">
+              <SelectTrigger className="w-[92px] px-3 py-2 text-sm shadow-xs bg-transparent focus-visible:ring-[3px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -89,7 +94,12 @@ export default function PortfolioSummary({ data }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <PortfolioValueChart isZh={isZh} timeRange={timeRange} />
+          <PortfolioValueChart
+            isZh={isZh}
+            timeRange={timeRange}
+            historyData={portfolioHistory.history}
+            loading={portfolioHistory.isHistoryLoading}
+          />
         </div>
       </PortfolioValueCard>
     </div>

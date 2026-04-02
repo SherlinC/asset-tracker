@@ -16,6 +16,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
+import { usePortfolioActions } from "@/hooks/usePortfolioActions";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
 import {
   inferImportedAssetType,
   parseAssetWorkbook,
@@ -56,7 +58,14 @@ export default function ImportPreviewPage() {
   const { language } = useLanguage();
   const [, setLocation] = useLocation();
   const isZh = language === "zh";
-  const utils = trpc.useUtils();
+  const portfolioActions = usePortfolioActions();
+  const portfolioData = usePortfolioData({
+    includeSummary: false,
+    includeAssets: true,
+    includeHoldings: true,
+  });
+  const isGuestMode = portfolioActions.isGuestMode;
+  const systemHealth = trpc.system.health.useQuery({ timestamp: 1 });
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -68,10 +77,6 @@ export default function ImportPreviewPage() {
   const [ignoredRows, setIgnoredRows] = useState<Set<string>>(new Set());
   const [removedRows, setRemovedRows] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
-
-  const assetsQuery = trpc.assets.list.useQuery();
-  const replaceAllHoldings = trpc.holdings.replaceAll.useMutation();
-  const createAsset = trpc.assets.create.useMutation();
 
   const text = isZh
     ? {
@@ -115,13 +120,16 @@ export default function ImportPreviewPage() {
         overwriteHint:
           "确认导入后将覆盖当前持仓；系统会保留历史折线图，并记录一个新的历史快照。",
         dragActive: "释放文件以上传",
+        databaseOffline:
+          "当前数据库连接失败，所以旧数据暂时读不出来，导入也无法写入。修复 MySQL / DATABASE_URL 后，原有数据会恢复。",
       }
     : {
         title: "Import Preview",
         description:
           "Review, ignore, or remove problem rows here. Confirming import will overwrite current holdings while preserving the historical line chart.",
         uploadTitle: "Import Data",
-        uploadDesc: "Upload an Excel file to continue. Drag and drop supported.",
+        uploadDesc:
+          "Upload an Excel file to continue. Drag and drop supported.",
         pickFile: "Select File & Upload",
         reUpload: "Re-upload",
         downloadTemplate: "Download Template",
@@ -161,12 +169,14 @@ export default function ImportPreviewPage() {
         overwriteHint:
           "Confirming import will overwrite current holdings, keep the historical chart, and record a new snapshot.",
         dragActive: "Drop file to upload",
+        databaseOffline:
+          "The database connection is unavailable, so previous data cannot be read right now and imports cannot be saved. Once MySQL / DATABASE_URL is fixed, your original data will reappear.",
       };
 
   const rawRows = useMemo(() => preview?.rows ?? [], [preview?.rows]);
   const existingAssets = useMemo(
-    () => assetsQuery.data ?? [],
-    [assetsQuery.data]
+    () => portfolioData.assets,
+    [portfolioData.assets]
   );
 
   const rowsWithStatus = useMemo<PreviewRowViewModel[]>(() => {
@@ -342,12 +352,15 @@ export default function ImportPreviewPage() {
         let asset = assetCache.get(row.symbol.toUpperCase());
 
         if (!asset) {
-          asset = await createAsset.mutateAsync({
-            symbol: row.symbol,
-            type: inferImportedAssetType(row.sheetKey),
-            name: row.builtInAsset?.name ?? row.symbol,
-            baseCurrency: row.builtInAsset?.currency ?? "CNY",
-          });
+          asset = await portfolioActions.createAsset(
+            {
+              symbol: row.symbol,
+              type: inferImportedAssetType(row.sheetKey),
+              name: row.builtInAsset?.name ?? row.symbol,
+              baseCurrency: row.builtInAsset?.currency ?? "CNY",
+            },
+            { deferInvalidate: true }
+          );
           assetCache.set(asset.symbol.toUpperCase(), asset);
         }
 
@@ -358,21 +371,17 @@ export default function ImportPreviewPage() {
         });
       }
 
-      await replaceAllHoldings.mutateAsync({ holdings: nextHoldings });
-
-      await Promise.all([
-        utils.assets.list.invalidate(),
-        utils.holdings.list.invalidate(),
-        utils.portfolio.summary.invalidate(),
-        utils.portfolioHistory.get.invalidate(),
-        utils.portfolioHistory.getByRange.invalidate(),
-      ]);
+      await portfolioActions.replaceAllHoldings({ holdings: nextHoldings });
 
       toast.success(text.importSuccess);
       setLocation(ROUTE_PATHS.dashboard);
     } catch (error) {
       console.error("Failed to import workbook:", error);
-      toast.error(text.importFailed);
+      const message =
+        error instanceof Error && error.message
+          ? `${text.importFailed} ${error.message}`
+          : text.importFailed;
+      toast.error(message);
     } finally {
       setIsImporting(false);
     }
@@ -405,6 +414,12 @@ export default function ImportPreviewPage() {
   return (
     <DashboardLayout>
       <div className="relative min-h-[calc(100vh-12rem)]">
+        {!isGuestMode && systemHealth.data?.dbConnected === false ? (
+          <div className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {text.databaseOffline}
+          </div>
+        ) : null}
+
         <input
           ref={inputRef}
           type="file"
@@ -531,7 +546,12 @@ export default function ImportPreviewPage() {
                 </Button>
                 <Button
                   onClick={handleImport}
-                  disabled={readyRows.length === 0 || isImporting}
+                  disabled={
+                    (!isGuestMode &&
+                      systemHealth.data?.dbConnected === false) ||
+                    readyRows.length === 0 ||
+                    isImporting
+                  }
                   className="bg-primary px-8 text-primary-foreground hover:bg-primary/90"
                 >
                   {isImporting ? text.importing : text.importAction}
@@ -546,7 +566,7 @@ export default function ImportPreviewPage() {
                   {text.preview}
                 </h3>
               </div>
-              
+
               {rowsWithStatus.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   {text.noRows}

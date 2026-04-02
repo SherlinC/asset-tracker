@@ -1,22 +1,39 @@
 import {
+  AlertTriangle,
+  ArrowUp,
   Brain,
+  CheckCircle,
   ChevronRight,
   CircleDollarSign,
+  Flame,
   Lightbulb,
+  Loader2,
   Landmark,
+  Scale,
+  Shield,
   Sparkles,
   Target,
   TrendingUp,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import DashboardLayout from "@/components/DashboardLayout";
 import PageHeader from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/hooks/useLanguage";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
 import { usePriceUpdates } from "@/hooks/usePriceUpdates";
 import {
   BUCKET_COLORS,
@@ -31,6 +48,7 @@ import {
   type StrategyKey,
 } from "@/lib/strategyPage";
 import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
@@ -96,6 +114,23 @@ type ActionPlan = {
   sourceAssets: SourceAssetAction[];
   recommendations: Recommendation[];
   recommendationAllocations: RecommendationAllocation[];
+};
+
+type LiveStrategyVariant = {
+  summary: string;
+  thesis: string;
+  portfolioFit: string;
+  actions: string[];
+  buyIdeas: string[];
+  risks: string[];
+};
+
+type LiveStrategyData = {
+  generatedAt: string;
+  marketSummary: string;
+  marketSnapshot: string[];
+  headlineDigest: string[];
+  strategies: Record<StrategyKey, LiveStrategyVariant>;
 };
 
 function detectBucket(asset: PortfolioAsset): AllocationBucket {
@@ -491,24 +526,119 @@ function buildActionPlan(
   return actions.slice(0, 2);
 }
 
+const STRATEGY_VISUALS: Record<
+  StrategyKey,
+  {
+    icon: typeof Shield;
+    activeClass: string;
+    inactiveClass: string;
+    badgeClass: string;
+  }
+> = {
+  conservative: {
+    icon: Shield,
+    activeClass:
+      "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500",
+    inactiveClass:
+      "border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40",
+    badgeClass:
+      "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  },
+  balanced: {
+    icon: Scale,
+    activeClass:
+      "border-violet-600 bg-violet-600 text-white dark:border-violet-500 dark:bg-violet-500",
+    inactiveClass:
+      "border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40",
+    badgeClass:
+      "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  },
+  aggressive: {
+    icon: Flame,
+    activeClass:
+      "border-amber-600 bg-amber-600 text-white dark:border-amber-500 dark:bg-amber-500",
+    inactiveClass:
+      "border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40",
+    badgeClass:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+};
+
+function FragmentationGauge({ score }: { score: number }) {
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  const progress = Math.min(score, 100) / 100;
+  const offset = circumference * (1 - progress);
+  const colorClass =
+    score < 30
+      ? "text-emerald-500"
+      : score < 60
+        ? "text-amber-500"
+        : "text-red-500";
+  const trackClass =
+    score < 30
+      ? "text-emerald-500/15"
+      : score < 60
+        ? "text-amber-500/15"
+        : "text-red-500/15";
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg viewBox="0 0 100 100" className="h-28 w-28 -rotate-90">
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          strokeWidth="8"
+          className={`stroke-current ${trackClass}`}
+        />
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className={`stroke-current ${colorClass}`}
+          style={{ transition: "stroke-dashoffset 0.6s ease-out" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className={`text-3xl font-semibold ${colorClass}`}>{score}</span>
+      </div>
+    </div>
+  );
+}
+
+const BUCKET_BAR_COLORS: Record<AllocationBucket, string> = {
+  cash: "#3b82f6",
+  fixed_income: "#8b5cf6",
+  equity: "#10b981",
+  alternatives: "#f59e0b",
+};
+
 export default function StrategyPage() {
   const { language } = useLanguage();
   const [selectedStrategy, setSelectedStrategy] =
     useState<StrategyKey>("balanced");
   const [showActionPlan, setShowActionPlan] = useState(false);
-  usePriceUpdates(10 * 60 * 1000);
   const text = getStrategyPageText(language);
-  const portfolioSummary = trpc.portfolio.summary.useQuery(undefined, {
-    refetchInterval: 10 * 60 * 1000,
+  const portfolioData = usePortfolioData({
+    includeSummary: true,
   });
+  const generateStrategyMutation = trpc.strategy.generate.useMutation();
+  usePriceUpdates(10 * 60 * 1000, false, portfolioData.isGuestMode);
 
   const currentAllocation = useMemo(
-    () => getCurrentAllocation(portfolioSummary.data),
-    [portfolioSummary.data]
+    () => getCurrentAllocation(portfolioData.summary),
+    [portfolioData.summary]
   );
   const signals = useMemo(
-    () => getPortfolioSignals(portfolioSummary.data),
-    [portfolioSummary.data]
+    () => getPortfolioSignals(portfolioData.summary),
+    [portfolioData.summary]
   );
   const activeStrategy = STRATEGIES[selectedStrategy];
   const biggestGaps = getStrategyGap(
@@ -518,21 +648,80 @@ export default function StrategyPage() {
   const actionPlan = useMemo(
     () =>
       buildActionPlan(
-        portfolioSummary.data,
+        portfolioData.summary,
         currentAllocation,
         activeStrategy.allocation,
-        portfolioSummary.data?.totalValueUSD ?? 0,
-        portfolioSummary.data?.exchangeRate ?? DEFAULT_USD_CNY_RATE
+        portfolioData.summary?.totalValueUSD ?? 0,
+        portfolioData.summary?.exchangeRate ?? DEFAULT_USD_CNY_RATE
       ),
-    [activeStrategy.allocation, currentAllocation, portfolioSummary.data]
+    [activeStrategy.allocation, currentAllocation, portfolioData.summary]
   );
   const simplification = useMemo(
-    () => getFragmentationAnalysis(portfolioSummary.data, language),
-    [language, portfolioSummary.data]
+    () => getFragmentationAnalysis(portfolioData.summary, language),
+    [language, portfolioData.summary]
   );
+  const allocationChartData = useMemo(
+    () =>
+      (Object.keys(BUCKET_LABELS) as AllocationBucket[]).map(bucket => ({
+        name: BUCKET_LABELS[bucket],
+        bucket,
+        current: Number(currentAllocation[bucket].toFixed(1)),
+        target: activeStrategy.allocation[bucket],
+      })),
+    [currentAllocation, activeStrategy.allocation]
+  );
+  const strategyRequestInput = useMemo(() => {
+    if (!portfolioData.summary) {
+      return null;
+    }
+
+    return {
+      language,
+      portfolio: {
+        totalValueUSD: portfolioData.summary.totalValueUSD,
+        totalValueCNY: portfolioData.summary.totalValueCNY,
+        exchangeRate: portfolioData.summary.exchangeRate,
+        assets: portfolioData.summary.assets.map(asset => ({
+          symbol: asset.symbol,
+          name: asset.name,
+          type: asset.type,
+          quantity: asset.quantity,
+          priceUSD: asset.priceUSD,
+          valueUSD: asset.valueUSD,
+        })),
+      },
+    };
+  }, [language, portfolioData.summary]);
+  const liveStrategyData =
+    (generateStrategyMutation.data as LiveStrategyData | undefined) ??
+    undefined;
+  const liveStrategy = liveStrategyData?.strategies[selectedStrategy];
+  const strategyResetKey = `${language}:${portfolioData.summary?.totalValueUSD ?? 0}:${portfolioData.summary?.exchangeRate ?? 0}:${portfolioData.summary?.assets.length ?? 0}`;
+
+  useEffect(() => {
+    generateStrategyMutation.reset();
+  }, [strategyResetKey]);
+
+  const handleToggleActionPlan = () => {
+    const next = !showActionPlan;
+    setShowActionPlan(next);
+
+    if (
+      next &&
+      strategyRequestInput &&
+      !generateStrategyMutation.isPending &&
+      !generateStrategyMutation.data
+    ) {
+      generateStrategyMutation.mutate(strategyRequestInput);
+    }
+  };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout
+      onPortfolioChanged={async () => {
+        await portfolioData.refetchAll();
+      }}
+    >
       <div className="space-y-6">
         <PageHeader
           title={text.title}
@@ -548,7 +737,7 @@ export default function StrategyPage() {
           </Badge>
         </PageHeader>
 
-        {portfolioSummary.isLoading ? (
+        {portfolioData.isSummaryLoading ? (
           <Card>
             <CardContent className="p-8 text-center text-muted-foreground">
               {text.loading}
@@ -619,7 +808,7 @@ export default function StrategyPage() {
                     </p>
                     <p className="mt-2 text-3xl font-semibold text-foreground">
                       $
-                      {portfolioSummary.data?.totalValueUSD.toLocaleString(
+                      {portfolioData.summary?.totalValueUSD.toLocaleString(
                         "en-US",
                         {
                           maximumFractionDigits: 0,
@@ -628,7 +817,7 @@ export default function StrategyPage() {
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       约 ¥
-                      {portfolioSummary.data?.totalValueCNY.toLocaleString(
+                      {portfolioData.summary?.totalValueCNY.toLocaleString(
                         "en-US",
                         {
                           maximumFractionDigits: 0,
@@ -641,8 +830,8 @@ export default function StrategyPage() {
                       <Landmark className="mt-0.5 h-4 w-4 text-violet-500" />
                       <span>
                         {language === "zh"
-                          ? `汇率基准：1 USD ≈ ¥${(portfolioSummary.data?.exchangeRate ?? DEFAULT_USD_CNY_RATE).toFixed(4)}`
-                          : `FX baseline: 1 USD ≈ ¥${(portfolioSummary.data?.exchangeRate ?? DEFAULT_USD_CNY_RATE).toFixed(4)}`}
+                          ? `汇率基准：1 USD ≈ ¥${(portfolioData.summary?.exchangeRate ?? DEFAULT_USD_CNY_RATE).toFixed(4)}`
+                          : `FX baseline: 1 USD ≈ ¥${(portfolioData.summary?.exchangeRate ?? DEFAULT_USD_CNY_RATE).toFixed(4)}`}
                       </span>
                     </div>
                     <div className="flex items-start gap-2">
@@ -665,29 +854,56 @@ export default function StrategyPage() {
                     {text.strategySuggestions}
                   </CardTitle>
                   <Button
-                    onClick={() => setShowActionPlan(value => !value)}
-                    className="w-fit gap-2"
+                    onClick={handleToggleActionPlan}
+                    className={cn(
+                      "w-fit gap-2",
+                      showActionPlan
+                        ? ""
+                        : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-md shadow-violet-500/25 hover:from-violet-700 hover:to-blue-700"
+                    )}
+                    disabled={portfolioData.summary == null}
                   >
-                    <Sparkles className="h-4 w-4" />
+                    {generateStrategyMutation.isPending && showActionPlan ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
                     {showActionPlan ? text.hidePlan : text.showPlan}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                   {(Object.keys(STRATEGIES) as StrategyKey[]).map(key => {
                     const strategy = STRATEGIES[key];
                     const isActive = key === selectedStrategy;
+                    const visual = STRATEGY_VISUALS[key];
+                    const Icon = visual.icon;
 
                     return (
-                      <Button
+                      <button
                         key={key}
-                        variant={isActive ? "default" : "outline"}
                         onClick={() => setSelectedStrategy(key)}
-                        className="min-w-28"
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
+                          isActive
+                            ? visual.activeClass
+                            : visual.inactiveClass
+                        )}
                       >
+                        <Icon className="h-4 w-4" />
                         {strategy.label}
-                      </Button>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : visual.badgeClass
+                          )}
+                        >
+                          {strategy.tag}
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
@@ -762,24 +978,80 @@ export default function StrategyPage() {
                       </p>
                     </div>
 
-                    <div className="space-y-4">
-                      {(Object.keys(BUCKET_LABELS) as AllocationBucket[]).map(
-                        bucket => (
-                          <div key={bucket} className="space-y-2">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">
-                                {BUCKET_LABELS[bucket]}
-                              </span>
-                              <span className="font-medium text-foreground">
-                                {activeStrategy.allocation[bucket]}%
-                              </span>
-                            </div>
-                            <Progress
-                              value={activeStrategy.allocation[bucket]}
-                            />
-                          </div>
-                        )
-                      )}
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={allocationChartData}
+                          layout="vertical"
+                          margin={{ top: 4, right: 12, bottom: 4, left: 0 }}
+                          barGap={2}
+                          barCategoryGap="20%"
+                        >
+                          <XAxis
+                            type="number"
+                            domain={[0, 70]}
+                            tickFormatter={v => `${v}%`}
+                            tick={{
+                              fontSize: 11,
+                              fill: "hsl(var(--muted-foreground))",
+                            }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={90}
+                            tick={{
+                              fontSize: 12,
+                              fill: "hsl(var(--muted-foreground))",
+                            }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            formatter={(value: number) => `${value}%`}
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--background))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "0.5rem",
+                              fontSize: 12,
+                            }}
+                          />
+                          <Bar
+                            dataKey="current"
+                            name={
+                              language === "zh" ? "当前" : "Current"
+                            }
+                            fill="hsl(var(--muted-foreground) / 0.25)"
+                            radius={[0, 4, 4, 0]}
+                          />
+                          <Bar
+                            dataKey="target"
+                            name={
+                              language === "zh" ? "目标" : "Target"
+                            }
+                            radius={[0, 4, 4, 0]}
+                          >
+                            {allocationChartData.map(entry => (
+                              <Cell
+                                key={entry.bucket}
+                                fill={BUCKET_BAR_COLORS[entry.bucket]}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/25" />
+                        {language === "zh" ? "当前" : "Current"}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-primary" />
+                        {language === "zh" ? "目标" : "Target"}
+                      </span>
                     </div>
 
                     <div className="rounded-xl border bg-background p-4">
@@ -831,6 +1103,217 @@ export default function StrategyPage() {
                       </div>
                       <Badge variant="secondary">{text.firstDraft}</Badge>
                     </div>
+
+                    {generateStrategyMutation.isPending ? (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border bg-background p-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>
+                              {language === "zh"
+                                ? "正在结合最新市场快照和财经新闻生成实时策略..."
+                                : "Generating a live strategy from current market data and fresh financial headlines..."}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                          <div className="space-y-4 rounded-xl border p-5">
+                            <Skeleton className="h-5 w-40" />
+                            <Skeleton className="h-20 w-full rounded-lg" />
+                            <div className="space-y-3">
+                              <Skeleton className="h-3 w-24" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-3/4" />
+                            </div>
+                            <div className="space-y-3">
+                              <Skeleton className="h-3 w-24" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-5/6" />
+                            </div>
+                          </div>
+                          <div className="space-y-4 rounded-xl border p-5">
+                            <div className="flex items-center justify-between">
+                              <Skeleton className="h-5 w-36" />
+                              <Skeleton className="h-5 w-20 rounded-full" />
+                            </div>
+                            <Skeleton className="h-20 w-full rounded-lg" />
+                            <div className="space-y-3">
+                              <Skeleton className="h-3 w-32" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-full" />
+                            </div>
+                            <div className="space-y-3">
+                              <Skeleton className="h-16 w-full rounded-lg" />
+                              <Skeleton className="h-16 w-full rounded-lg" />
+                              <Skeleton className="h-16 w-full rounded-lg" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {generateStrategyMutation.error ? (
+                      <div className="rounded-xl border border-destructive/30 bg-background p-4 text-sm text-muted-foreground">
+                        {language === "zh"
+                          ? `实时 AI 策略生成失败：${generateStrategyMutation.error.message}`
+                          : `Live AI strategy generation failed: ${generateStrategyMutation.error.message}`}
+                      </div>
+                    ) : null}
+
+                    {liveStrategyData && liveStrategy ? (
+                      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                        <Card className="border-blue-200/40 bg-blue-50/30 shadow-sm dark:border-blue-900/30 dark:bg-blue-950/10">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base">
+                              {language === "zh"
+                                ? "实时市场上下文"
+                                : "Live market context"}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4 text-sm">
+                            <div className="rounded-xl border bg-muted/30 p-4">
+                              <p className="font-medium text-foreground">
+                                {liveStrategyData.marketSummary}
+                              </p>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                {language === "zh"
+                                  ? "生成时间"
+                                  : "Generated at"}
+                                : {liveStrategyData.generatedAt}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border bg-background p-4">
+                              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                {language === "zh"
+                                  ? "市场快照"
+                                  : "Market snapshot"}
+                              </p>
+                              <div className="mt-3 space-y-2 text-muted-foreground">
+                                {liveStrategyData.marketSnapshot.map(
+                                  (item, index) => (
+                                    <div key={item} className="flex gap-2">
+                                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                        {index + 1}
+                                      </span>
+                                      <span>{item}</span>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl border bg-background p-4">
+                              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                {language === "zh"
+                                  ? "新闻驱动"
+                                  : "Headline drivers"}
+                              </p>
+                              <div className="mt-3 space-y-2 text-muted-foreground">
+                                {liveStrategyData.headlineDigest.map(item => (
+                                  <div key={item} className="flex gap-2">
+                                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                                    <span>{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="border-violet-200/40 bg-violet-50/30 shadow-sm dark:border-violet-900/30 dark:bg-violet-950/10">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <CardTitle className="text-base">
+                                {language === "zh"
+                                  ? `${activeStrategy.label} 实时策略`
+                                  : `${activeStrategy.label} live strategy`}
+                              </CardTitle>
+                              <Badge variant="outline">
+                                {language === "zh"
+                                  ? "基于当下行情"
+                                  : "Live context"}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4 text-sm">
+                            <div className="rounded-xl border bg-muted/30 p-4">
+                              <p className="font-medium text-foreground">
+                                {liveStrategy.summary}
+                              </p>
+                              <p className="mt-2 text-muted-foreground">
+                                {liveStrategy.thesis}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border bg-background p-4">
+                              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                {language === "zh"
+                                  ? "与当前组合的关系"
+                                  : "Fit with current portfolio"}
+                              </p>
+                              <p className="mt-3 text-muted-foreground">
+                                {liveStrategy.portfolioFit}
+                              </p>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="rounded-xl border bg-background p-4">
+                                <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  {language === "zh"
+                                    ? "核心动作"
+                                    : "Key actions"}
+                                </p>
+                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                                  {liveStrategy.actions.map(item => (
+                                    <div key={item} className="flex gap-2">
+                                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                                      <span>{item}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border bg-background p-4">
+                                <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                  {language === "zh"
+                                    ? "关注增持方向"
+                                    : "Buy / add ideas"}
+                                </p>
+                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                                  {liveStrategy.buyIdeas.map(item => (
+                                    <div key={item} className="flex gap-2">
+                                      <ArrowUp className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                                      <span>{item}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                                <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  {language === "zh"
+                                    ? "主要风险"
+                                    : "Main risks"}
+                                </p>
+                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                                  {liveStrategy.risks.map(item => (
+                                    <div key={item} className="flex gap-2">
+                                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                                      <span>{item}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ) : null}
 
                     {actionPlan.length > 0 ? (
                       <div className="grid gap-4 xl:grid-cols-3">
@@ -975,14 +1458,12 @@ export default function StrategyPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-                  <div className="rounded-2xl border bg-muted/20 p-5">
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex flex-col items-center rounded-2xl border bg-muted/20 p-5">
+                    <p className="mb-2 text-sm text-muted-foreground">
                       {text.fragmentationScore}
                     </p>
-                    <p className="mt-2 text-4xl font-semibold text-foreground">
-                      {simplification.score}
-                    </p>
-                    <p className="mt-3 text-sm text-muted-foreground">
+                    <FragmentationGauge score={simplification.score} />
+                    <p className="mt-3 text-center text-sm text-muted-foreground">
                       {simplification.summary}
                     </p>
                   </div>

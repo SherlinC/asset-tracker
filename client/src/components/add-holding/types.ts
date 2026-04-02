@@ -29,6 +29,15 @@ export type PriceData = {
   priceUSD: number;
   priceCNY: number;
   change24h: number;
+  source: "live" | "cache" | "empty";
+  marketDataSource?:
+    | "onvista"
+    | "jpm_official"
+    | "jpm_factsheet"
+    | "eodhd"
+    | "morningstar"
+    | "yahoo";
+  issueCode?: "missing_eodhd_api_key";
 };
 
 export type AddHoldingSelectionProps = {
@@ -58,6 +67,7 @@ export type AddHoldingDetailsProps = {
   isZh: boolean;
   onImportExcel: () => void;
   selectedAssetSymbol: string;
+  selectedCategory: AssetCategory;
   priceLoading: boolean;
   priceData: PriceData | undefined;
   currencyDisplay: CurrencyDisplay;
@@ -67,6 +77,8 @@ export type AddHoldingDetailsProps = {
   onQuantityChange: (value: string) => void;
   costBasis: string;
   onCostBasisChange: (value: string) => void;
+  annualInterestRate: string;
+  onAnnualInterestRateChange: (value: string) => void;
   totalValue: number;
   onCancel: () => void;
   isSubmitting: boolean;

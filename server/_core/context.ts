@@ -7,7 +7,7 @@ import { sdk } from "./sdk";
 import type { User } from "../../drizzle/schema";
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 
-const DEV_LOGOUT_COOKIE = "asset_tracker_dev_logout";
+const GUEST_MODE_COOKIE = "asset_tracker_guest_mode";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -19,30 +19,53 @@ export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: User | null = null;
-
-  const isDevBypass =
-    !ENV.isProduction &&
-    !ENV.oAuthServerUrl &&
-    ENV.devUserEmail.length > 0 &&
-    ENV.databaseUrl.length > 0;
-
   const cookies = parseCookie(opts.req.headers.cookie ?? "");
-  const hasDevLogout = Boolean(cookies[DEV_LOGOUT_COOKIE]);
+  const hasGuestMode = cookies[GUEST_MODE_COOKIE] === "1";
 
-  if (isDevBypass && !hasDevLogout) {
-    try {
-      user = await db.getOrCreateDevUser(ENV.devUserEmail);
-    } catch (err) {
-      console.warn("[Dev bypass] Failed (e.g. MySQL not running):", (err as Error).message);
-      user = null;
-    }
-  }
+  const buildFallbackUser = (): User => {
+    const now = new Date();
+    const fallbackName = ENV.devUserEmail
+      ? ENV.devUserEmail.split("@")[0] || "Guest User"
+      : "Guest User";
+
+    return {
+      id: 0,
+      openId: "guest-local",
+      name: fallbackName,
+      email: null,
+      loginMethod: "guest-access",
+      role: "user",
+      createdAt: now,
+      updatedAt: now,
+      lastSignedIn: now,
+    };
+  };
 
   if (!user) {
     try {
       user = await sdk.authenticateRequest(opts.req);
     } catch {
       user = null;
+    }
+  }
+
+  if (!user) {
+    try {
+      if (
+        !hasGuestMode &&
+        !ENV.isProduction &&
+        !ENV.oAuthServerUrl &&
+        ENV.devUserEmail.length > 0
+      ) {
+        user = await db.getOrCreateDevUser(ENV.devUserEmail);
+      }
+
+      if (!user) {
+        user = buildFallbackUser();
+      }
+    } catch (err) {
+      console.warn("[Guest access fallback]", (err as Error).message);
+      user = buildFallbackUser();
     }
   }
 

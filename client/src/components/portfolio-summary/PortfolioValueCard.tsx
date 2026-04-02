@@ -30,9 +30,15 @@ export function PortfolioValueCard({
   exchangeRate,
   children,
 }: Props) {
+  const formatPrimaryValue = (value: number) =>
+    value.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {isZh ? "组合总价值" : "Total Portfolio Value"}
         </CardTitle>
@@ -42,7 +48,7 @@ export function PortfolioValueCard({
             onCurrencyChange(value === "CNY" ? "CNY" : "USD")
           }
         >
-          <SelectTrigger className="w-fit h-8 border-none shadow-none p-0 focus:ring-0 [&>svg]:opacity-100">
+          <SelectTrigger className="w-24 px-3 py-2 text-sm shadow-xs bg-transparent focus-visible:ring-[3px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -53,33 +59,39 @@ export function PortfolioValueCard({
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-            <div>
-              <div className="text-3xl font-bold text-foreground">
+          <div className="flex flex-wrap gap-4">
+            <div className="w-full max-w-[360px] rounded-[28px] border border-border/80 bg-background px-8 py-7">
+              <p className="text-sm font-medium text-muted-foreground">
+                {isZh ? "总资产" : "Total Assets"}
+              </p>
+              <div className="mt-5 text-3xl font-semibold tracking-tight text-foreground">
                 {currencyDisplay === "CNY" ? "¥" : "$"}
-                {displayValue.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                {formatPrimaryValue(displayValue)}
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <div className="mt-4 text-muted-foreground">
+                <p className="text-xs">
+                  {isZh
+                    ? `${assetCount} 个资产 · ${holdingCount} 条持仓`
+                    : `${assetCount} assets · ${holdingCount} holdings`}
+                </p>
+              </div>
+            </div>
+
+            <div className="w-full max-w-[360px] rounded-[28px] border border-border/80 bg-background px-8 py-7">
+              <p className="text-sm font-medium text-muted-foreground">
+                {isZh ? "汇率基准" : "FX Baseline"}
+              </p>
+              <div className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
+                {`1 USD ≈ ¥${exchangeRate.toFixed(4)}`}
+              </div>
+              <p className="mt-4 text-sm leading-7 text-muted-foreground">
                 {isZh
-                  ? `共 ${assetCount} 个资产（${holdingCount} 条持仓）`
-                  : `${assetCount} assets (${holdingCount} holdings) tracked`}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-muted/20 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                {isZh ? "美元兑人民币" : "USD to CNY"}
-              </p>
-              <p className="mt-2 text-lg font-semibold text-foreground">
-                {exchangeRate.toFixed(4)}
+                  ? "看重点：权益权重、现金缓冲、是否过度分散。"
+                  : "Focus on equity weight, cash buffer, and diversification."}
               </p>
             </div>
           </div>
-          <div className="w-full">
-            {children}
-          </div>
+          <div className="w-full">{children}</div>
         </div>
       </CardContent>
     </Card>

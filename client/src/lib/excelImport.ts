@@ -9,6 +9,7 @@ import {
   getTemplateSheetKeyByName,
   type AssetTemplateSheetKey,
 } from "./excelTemplate";
+import { loadExcelJs } from "./exceljs";
 
 export type ImportedAssetType = "currency" | "crypto" | "stock" | "fund";
 
@@ -171,7 +172,7 @@ export async function parseAssetWorkbook(
   file: File,
   language: Language
 ): Promise<ImportedHoldingPreviewResult> {
-  const ExcelJS = await import("exceljs");
+  const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
   const buffer = await file.arrayBuffer();
   const globalErrors: string[] = [];

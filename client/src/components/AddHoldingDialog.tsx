@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/useLanguage";
+import { usePortfolioActions } from "@/hooks/usePortfolioActions";
 import { ROUTE_PATHS } from "@/lib/navigation";
 import { trpc } from "@/lib/trpc";
 
@@ -35,6 +36,7 @@ export default function AddHoldingDialog({
 }: Props) {
   const { language } = useLanguage();
   const isZh = language === "zh";
+  const portfolioActions = usePortfolioActions();
   const [, setLocation] = useLocation();
 
   const text = isZh
@@ -57,7 +59,6 @@ export default function AddHoldingDialog({
         errorAdd: "Failed to add holding: ",
       };
 
-  const utils = trpc.useUtils();
   const [selectedCategory, setSelectedCategory] =
     useState<AssetCategory>("stock");
   const [selectedStockSubCategory, setSelectedStockSubCategory] =
@@ -67,9 +68,9 @@ export default function AddHoldingDialog({
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [costBasis, setCostBasis] = useState("");
+  const [annualInterestRate, setAnnualInterestRate] = useState("");
   const [currencyDisplay, setCurrencyDisplay] =
     useState<CurrencyDisplay>("USD");
-  const createAsset = trpc.assets.create.useMutation();
   const {
     assetComboboxOpen,
     setAssetComboboxOpen,
@@ -93,24 +94,6 @@ export default function AddHoldingDialog({
     selectedAssetSymbol,
   });
 
-  const addHolding = trpc.holdings.add.useMutation({
-    onSuccess: async () => {
-      await Promise.all([
-        utils.holdings.list.invalidate(),
-        utils.portfolio.summary.invalidate(),
-        utils.portfolioHistory.get.invalidate(),
-        utils.assets.list.invalidate(),
-      ]);
-      await onSuccess();
-      toast.success(text.success);
-      resetForm();
-      onOpenChange(false);
-    },
-    onError: error => {
-      toast.error(`${text.errorAdd}${error.message}`);
-    },
-  });
-
   const fetchPrice = trpc.prices.fetchSingle.useQuery(
     buildFetchPriceInput({
       assets,
@@ -131,6 +114,7 @@ export default function AddHoldingDialog({
     setSelectedAssetSymbol("");
     setQuantity("");
     setCostBasis("");
+    setAnnualInterestRate("");
     setCurrencyDisplay("USD");
     setSelectedStockSubCategory("cn_stock");
     setSelectedFundSubCategory("china_fund");
@@ -152,6 +136,10 @@ export default function AddHoldingDialog({
     if (category !== "stock") {
       setStockSearchInput("");
       setSelectedStockSubCategory("cn_stock");
+    }
+
+    if (category !== "currency") {
+      setAnnualInterestRate("");
     }
   };
 
@@ -212,7 +200,7 @@ export default function AddHoldingDialog({
           return;
         }
 
-        asset = await createAsset.mutateAsync({
+        asset = await portfolioActions.createAsset({
           symbol: assetToCreate.symbol,
           type: assetToCreate.type,
           name: assetToCreate.name,
@@ -220,13 +208,29 @@ export default function AddHoldingDialog({
         });
       }
 
-      await addHolding.mutateAsync({
+      await portfolioActions.addHolding({
         assetId: asset.id,
         quantity,
         costBasis: costBasis || undefined,
+        annualInterestRate:
+          selectedCategory === "currency"
+            ? annualInterestRate || undefined
+            : undefined,
+      });
+
+      resetForm();
+      onOpenChange(false);
+      toast.success(text.success);
+      void Promise.resolve(onSuccess()).catch(error => {
+        console.error("Error refreshing portfolio after add:", error);
       });
     } catch (error) {
       console.error("Error adding holding:", error);
+      const message =
+        error instanceof Error && error.message
+          ? `${text.errorAdd}${error.message}`
+          : text.errorAdd;
+      toast.error(message);
     }
   };
 
@@ -234,7 +238,8 @@ export default function AddHoldingDialog({
     currencyDisplay === "USD" ? priceData?.priceUSD : priceData?.priceCNY;
   const totalValue =
     currentPrice && quantity ? parseFloat(quantity) * currentPrice : 0;
-  const isSubmitting = addHolding.isPending || createAsset.isPending;
+  const isSubmitting =
+    portfolioActions.isAddingHolding || portfolioActions.isCreatingAsset;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -242,9 +247,7 @@ export default function AddHoldingDialog({
         <DialogHeader>
           <div>
             <DialogTitle>{text.title}</DialogTitle>
-            <DialogDescription>
-              {text.description}
-            </DialogDescription>
+            <DialogDescription>{text.description}</DialogDescription>
           </div>
         </DialogHeader>
 
@@ -279,6 +282,7 @@ export default function AddHoldingDialog({
               setLocation(ROUTE_PATHS.importPreview);
             }}
             selectedAssetSymbol={selectedAssetSymbol}
+            selectedCategory={selectedCategory}
             priceLoading={fetchPrice.isLoading}
             priceData={priceData}
             currencyDisplay={currencyDisplay}
@@ -288,6 +292,8 @@ export default function AddHoldingDialog({
             onQuantityChange={setQuantity}
             costBasis={costBasis}
             onCostBasisChange={setCostBasis}
+            annualInterestRate={annualInterestRate}
+            onAnnualInterestRateChange={setAnnualInterestRate}
             totalValue={totalValue}
             onCancel={handleCancel}
             isSubmitting={isSubmitting}

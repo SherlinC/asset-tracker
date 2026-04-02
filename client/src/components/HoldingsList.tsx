@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -12,12 +11,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/hooks/useLanguage";
-import { trpc } from "@/lib/trpc";
+import { usePortfolioActions } from "@/hooks/usePortfolioActions";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
-import { getColorByType, TYPE_LABELS_ZH } from "./portfolio-summary/constants";
-import { buildTypeAllocation } from "./portfolio-summary/utils";
 import { CATEGORY_LABELS, CATEGORY_LABELS_EN } from "./holdings-list/constants";
 import { HoldingsCategoryTable } from "./holdings-list/HoldingsCategoryTable";
 import { HoldingsEditDialog } from "./holdings-list/HoldingsEditDialog";
@@ -27,6 +24,8 @@ import {
   groupHoldingsByCategory,
   resolveScrollTarget,
 } from "./holdings-list/utils";
+import { getColorByType, TYPE_LABELS_ZH } from "./portfolio-summary/constants";
+import { buildTypeAllocation } from "./portfolio-summary/utils";
 
 import type {
   CurrencyDisplay,
@@ -36,13 +35,14 @@ import type {
 
 export default function HoldingsList({
   holdings,
-  onRefresh,
+  portfolioData,
   scrollToCategory,
   onScrollToCategoryHandled,
 }: HoldingsListProps) {
   const { language } = useLanguage();
   const isZh = language === "zh";
-  const [, navigate] = useLocation();
+  const portfolioActions = usePortfolioActions();
+  const isGuestMode = portfolioActions.isGuestMode;
   const [currencyDisplay, setCurrencyDisplay] =
     useState<CurrencyDisplay>("USD");
   const [expandedAssets, setExpandedAssets] = useState<Record<number, boolean>>(
@@ -51,39 +51,12 @@ export default function HoldingsList({
   const [editHolding, setEditHolding] = useState<EditHoldingState | null>(null);
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
-  const portfolioSummary = trpc.portfolio.summary.useQuery();
-  const exchangeRate =
-    portfolioSummary.data?.exchangeRate ?? DEFAULT_USD_CNY_RATE;
-  const totalPortfolioUSD = portfolioSummary.data?.totalValueUSD ?? 0;
+  const exchangeRate = portfolioData?.exchangeRate ?? DEFAULT_USD_CNY_RATE;
+  const totalPortfolioUSD = portfolioData?.totalValueUSD ?? 0;
   const portfolioAssets = useMemo(
-    () => portfolioSummary.data?.assets ?? [],
-    [portfolioSummary.data?.assets]
+    () => portfolioData?.assets ?? [],
+    [portfolioData?.assets]
   );
-
-  const updateHolding = trpc.holdings.update.useMutation({
-    onSuccess: async () => {
-      toast.success("已更新持仓");
-      setEditHolding(null);
-      onRefresh();
-    },
-    onError: error => {
-      toast.error(`更新失败: ${error.message}`);
-    },
-  });
-
-  const deleteHolding = trpc.holdings.delete.useMutation({
-    onSuccess: () => {
-      toast.success(isZh ? "已删除持仓" : "Holding deleted successfully");
-      onRefresh();
-    },
-    onError: error => {
-      toast.error(
-        isZh
-          ? `删除失败: ${error.message}`
-          : `Failed to delete holding: ${error.message}`
-      );
-    },
-  });
 
   const aggregatedHoldings = useMemo(
     () => buildAggregatedHoldings(holdings, portfolioAssets),
@@ -175,18 +148,66 @@ export default function HoldingsList({
     }
   }, [scrollToCategory, orderedCategories, onScrollToCategoryHandled]);
 
-  const handleEditSubmit = (event: React.FormEvent) => {
+  const handleEditSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!editHolding || !editHolding.quantity.trim()) {
       return;
     }
 
-    updateHolding.mutate({
-      holdingId: editHolding.id,
-      quantity: editHolding.quantity.trim(),
-      costBasis: editHolding.costBasis.trim() || undefined,
-    });
+    if (isGuestMode) {
+      try {
+        await portfolioActions.updateHolding({
+          holdingId: editHolding.id,
+          quantity: editHolding.quantity.trim(),
+          costBasis: editHolding.costBasis.trim() || undefined,
+          annualInterestRate:
+            editHolding.assetType === "currency"
+              ? editHolding.annualInterestRate.trim() || undefined
+              : undefined,
+        });
+        toast.success(isZh ? "已更新持仓" : "Holding updated successfully");
+        setEditHolding(null);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : isZh
+              ? "更新失败"
+              : "Update failed";
+        toast.error(
+          isZh ? `更新失败: ${message}` : `Update failed: ${message}`
+        );
+      }
+
+      return;
+    }
+
+    portfolioActions
+      .updateHolding({
+        holdingId: editHolding.id,
+        quantity: editHolding.quantity.trim(),
+        costBasis: editHolding.costBasis.trim() || undefined,
+        annualInterestRate:
+          editHolding.assetType === "currency"
+            ? editHolding.annualInterestRate.trim() || undefined
+            : undefined,
+      })
+      .then(() => {
+        toast.success(isZh ? "已更新持仓" : "Holding updated successfully");
+        setEditHolding(null);
+      })
+      .catch(error => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : isZh
+              ? "更新失败"
+              : "Update failed";
+        toast.error(
+          isZh ? `更新失败: ${message}` : `Update failed: ${message}`
+        );
+      });
   };
 
   const toggleExpanded = (assetId: number) => {
@@ -309,13 +330,31 @@ export default function HoldingsList({
                   groups={holdingsByCategory.get(category) ?? []}
                   expandedAssets={expandedAssets}
                   onToggleExpanded={toggleExpanded}
-                  onNavigateToAsset={assetId => navigate(`/asset/${assetId}`)}
                   onStartEdit={setEditHolding}
                   onExpandAsset={expandAsset}
-                  onDeleteHolding={holdingId =>
-                    deleteHolding.mutate({ holdingId })
-                  }
-                  deletePending={deleteHolding.isPending}
+                  onDeleteHolding={holdingId => {
+                    portfolioActions
+                      .deleteHolding(holdingId)
+                      .then(() => {
+                        toast.success(
+                          isZh ? "已删除持仓" : "Holding deleted successfully"
+                        );
+                      })
+                      .catch(error => {
+                        const message =
+                          error instanceof Error
+                            ? error.message
+                            : isZh
+                              ? "删除失败"
+                              : "Delete failed";
+                        toast.error(
+                          isZh
+                            ? `删除失败: ${message}`
+                            : `Failed to delete holding: ${message}`
+                        );
+                      });
+                  }}
+                  deletePending={portfolioActions.isDeletingHolding}
                 />
               </TabsContent>
             ))}
@@ -327,7 +366,7 @@ export default function HoldingsList({
         editHolding={editHolding}
         setEditHolding={setEditHolding}
         onSubmit={handleEditSubmit}
-        isPending={updateHolding.isPending}
+        isPending={portfolioActions.isUpdatingHolding}
       />
     </>
   );

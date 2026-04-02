@@ -131,6 +131,10 @@ export function AssetPicker({
             : "Search stock symbol, name or pinyin for A-shares"
           : "No asset found.";
 
+  const internationalFundHint = isZh
+    ? "优先显示可直接获取价格的 ETF / 基金代码；部分仅支持 ISIN 的国际基金在当前公开行情源下可能搜不到或无法报价。"
+    : "Results prioritize ETFs and fund symbols with direct public pricing; some ISIN-only international funds may be unavailable or unpriceable with the current public data sources.";
+
   return (
     <div className="space-y-2 min-w-0">
       <Label htmlFor="asset">{isZh ? "资产" : "Asset"}</Label>
@@ -181,13 +185,19 @@ export function AssetPicker({
         >
           <Command shouldFilter={!remoteSearch}>
             {remoteSearch ? (
-              <div className="flex items-center border-b px-2">
+              <div className="border-b px-2 py-2">
                 <Input
                   value={searchValue}
                   onChange={e => onInputChange(e.target.value)}
                   placeholder={placeholder}
-                  className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
+                {selectedCategory === "fund" &&
+                selectedFundSubCategory === "international_fund" ? (
+                  <p className="text-muted-foreground pt-2 text-xs leading-5">
+                    {internationalFundHint}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <CommandInput placeholder="Type symbol or name..." />

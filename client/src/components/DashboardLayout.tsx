@@ -13,11 +13,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AddHoldingDialog from "@/components/AddHoldingDialog";
 import type { Holding } from "@/components/holdings-list/types";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,9 +37,11 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl, isOAuthConfigured } from "@/const";
+import { enableGuestMode } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
+import { usePortfolioRefresh } from "@/hooks/usePortfolioRefresh";
 import { downloadCurrentHoldingsWorkbook } from "@/lib/excelExport";
 import {
   DASHBOARD_NAV_ITEMS,
@@ -64,98 +62,63 @@ const SIMULATED_USER = {
   initials: "IN",
 };
 
+function buildDisplayName(
+  name: string | null | undefined,
+  isGuestMode: boolean,
+  isZh: boolean
+) {
+  if (isGuestMode) {
+    return isZh ? "游客身份" : "Guest Mode";
+  }
+
+  if (name && name.trim().length > 0) {
+    return name;
+  }
+
+  return SIMULATED_USER.name;
+}
+
+function buildInitials(name: string) {
+  const normalized = name.trim();
+
+  if (!normalized) {
+    return SIMULATED_USER.initials;
+  }
+
+  const segments = normalized.split(/\s+/).filter(Boolean);
+  if (segments.length >= 2) {
+    return `${segments[0][0] ?? ""}${segments[1][0] ?? ""}`.toUpperCase();
+  }
+
+  return normalized.slice(0, 2).toUpperCase();
+}
+
 export default function DashboardLayout({
   children,
   exportHoldings,
+  assets,
+  onPortfolioChanged,
 }: {
   children: React.ReactNode;
   exportHoldings?: Holding[];
+  assets?: Holding["asset"][];
+  onPortfolioChanged?: () => Promise<void>;
 }) {
-  const { loading, user } = useAuth();
-  const [, setLocation] = useLocation();
-  const { language } = useLanguage();
-  const isZh = language === "zh";
-  const text = isZh
-    ? {
-        signInToContinue: "登录后继续",
-        devMode: "开发模式",
-        authHint: "访问该仪表盘需要先完成认证，请继续登录流程。",
-        devHint:
-          "请确认 .env 中已配置 DEV_USER_EMAIL 和 DATABASE_URL，并已启动 MySQL，然后刷新本页。",
-        signIn: "登录",
-        retry: "刷新重试",
-        backHome: "返回首页",
-      }
-    : {
-        signInToContinue: "Sign in to continue",
-        devMode: "Development mode",
-        authHint:
-          "Access to this dashboard requires authentication. Continue to launch the login flow.",
-        devHint:
-          "Make sure DEV_USER_EMAIL and DATABASE_URL are configured in .env, MySQL is running, then refresh this page.",
-        signIn: "Sign in",
-        retry: "Retry",
-        backHome: "Back home",
-      };
+  const { loading } = useAuth();
 
   if (loading) {
     return <DashboardLayoutSkeleton />;
-  }
-
-  if (!user) {
-    const loginUrl = getLoginUrl();
-    const isSamePage =
-      typeof window !== "undefined" && loginUrl === window.location.href;
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              {isOAuthConfigured() ? text.signInToContinue : text.devMode}
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              {isOAuthConfigured() ? text.authHint : text.devHint}
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 w-full">
-            {isOAuthConfigured() && !isSamePage ? (
-              <Button
-                onClick={() => {
-                  window.location.href = loginUrl;
-                }}
-                size="lg"
-                className="w-full shadow-lg hover:shadow-xl transition-all"
-              >
-                {text.signIn}
-              </Button>
-            ) : (
-              <Button
-                onClick={() => window.location.reload()}
-                size="lg"
-                variant="outline"
-                className="w-full"
-              >
-                {text.retry}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={() => setLocation(ROUTE_PATHS.home)}
-              className="w-full"
-            >
-              {text.backHome}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
     <SidebarProvider
       style={{ "--sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties}
     >
-      <DashboardLayoutContent exportHoldings={exportHoldings}>
+      <DashboardLayoutContent
+        exportHoldings={exportHoldings}
+        assets={assets}
+        onPortfolioChanged={onPortfolioChanged}
+      >
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -165,25 +128,46 @@ export default function DashboardLayout({
 function DashboardLayoutContent({
   children,
   exportHoldings,
+  assets,
+  onPortfolioChanged,
 }: {
   children: React.ReactNode;
   exportHoldings?: Holding[];
+  assets?: Holding["asset"][];
+  onPortfolioChanged?: () => Promise<void>;
 }) {
   const { language, toggleLanguage } = useLanguage();
   const isZh = language === "zh";
-  const { logout } = useAuth();
-  const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
-    enabled: exportHoldings === undefined,
+  const { logout, user } = useAuth();
+  const isGuestMode = user?.loginMethod === "guest-access";
+  const portfolioData = usePortfolioData({
+    includeSummary: false,
+    includeAssets: assets === undefined,
+    includeHoldings: exportHoldings === undefined || assets === undefined,
   });
-  const assetsQuery = trpc.assets.list.useQuery();
+  const portfolioRefresh = usePortfolioRefresh({
+    isGuestMode,
+    refetchAll: portfolioData.refetchAll,
+  });
+  const systemHealth = trpc.system.health.useQuery({ timestamp: 1 });
   const [isExportingData, setIsExportingData] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const availableExportHoldings = exportHoldings ?? holdingsQuery.data ?? [];
+  const displayName = buildDisplayName(
+    user?.name ?? user?.email,
+    isGuestMode,
+    isZh
+  );
+  const displayUser = {
+    ...SIMULATED_USER,
+    name: displayName,
+    initials: buildInitials(displayName),
+  };
+  const availableExportHoldings = exportHoldings ?? portfolioData.holdings;
   const isExportDataLoading =
-    exportHoldings === undefined && holdingsQuery.isLoading;
+    exportHoldings === undefined && portfolioData.isHoldingsLoading;
   const menuItems = DASHBOARD_NAV_ITEMS.map(item => ({
     ...item,
     label: pickLocalizedText(item.label, isZh),
@@ -198,6 +182,8 @@ function DashboardLayoutContent({
         menu: "菜单",
         exportCurrentData: "导出资产",
         importExcel: "添加资产",
+        databaseOffline:
+          "当前数据库连接失败，页面里的空数据不是丢失。修复 MySQL / DATABASE_URL 后，原有资产会恢复。写入操作也会暂时失败。",
         exportLoading: "正在加载可导出的持仓数据，请稍后重试。",
         exportStarted: "当前数据已开始导出",
         exportFailed: "当前数据导出失败，请稍后重试。",
@@ -209,6 +195,8 @@ function DashboardLayoutContent({
         menu: "Menu",
         exportCurrentData: "Export Assets",
         importExcel: "Add Asset",
+        databaseOffline:
+          "The database connection is currently unavailable. Empty dashboard data is not deleted; it will reappear after MySQL / DATABASE_URL is fixed. Write actions will also fail for now.",
         exportLoading:
           "Exportable holdings are still loading. Please try again.",
         exportStarted: "Current data export started",
@@ -324,16 +312,16 @@ function DashboardLayoutContent({
                     >
                       <Avatar className="h-8 w-8 rounded-lg">
                         <AvatarImage
-                          src={SIMULATED_USER.avatar}
-                          alt={SIMULATED_USER.name}
+                          src={displayUser.avatar}
+                          alt={displayUser.name}
                         />
                         <AvatarFallback className="rounded-lg">
-                          {SIMULATED_USER.initials}
+                          {displayUser.initials}
                         </AvatarFallback>
                       </Avatar>
                       <div className="grid flex-1 text-left text-sm leading-tight">
                         <span className="truncate font-semibold">
-                          {SIMULATED_USER.name}
+                          {displayUser.name}
                         </span>
                       </div>
                       <ChevronsUpDown className="ml-auto size-4" />
@@ -349,16 +337,16 @@ function DashboardLayoutContent({
                       <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                         <Avatar className="h-8 w-8 rounded-lg">
                           <AvatarImage
-                            src={SIMULATED_USER.avatar}
-                            alt={SIMULATED_USER.name}
+                            src={displayUser.avatar}
+                            alt={displayUser.name}
                           />
                           <AvatarFallback className="rounded-lg">
-                            {SIMULATED_USER.initials}
+                            {displayUser.initials}
                           </AvatarFallback>
                         </Avatar>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                           <span className="truncate font-semibold">
-                            {SIMULATED_USER.name}
+                            {displayUser.name}
                           </span>
                         </div>
                       </div>
@@ -371,7 +359,13 @@ function DashboardLayoutContent({
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => logout()}>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        enableGuestMode();
+                        await logout();
+                        setLocation(ROUTE_PATHS.home);
+                      }}
+                    >
                       <LogOut className="mr-2 size-4" />
                       {isZh ? "退出登录" : "Log out"}
                     </DropdownMenuItem>
@@ -387,8 +381,15 @@ function DashboardLayoutContent({
       <AddHoldingDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        assets={assetsQuery.data || []}
-        onSuccess={async () => {}}
+        assets={assets ?? portfolioData.assets}
+        onSuccess={async () => {
+          if (onPortfolioChanged) {
+            await onPortfolioChanged();
+            return;
+          }
+
+          await portfolioRefresh.refresh();
+        }}
       />
 
       <SidebarInset>
@@ -406,7 +407,14 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4">
+          {!isGuestMode && systemHealth.data?.dbConnected === false ? (
+            <div className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {text.databaseOffline}
+            </div>
+          ) : null}
+          {children}
+        </main>
       </SidebarInset>
     </>
   );

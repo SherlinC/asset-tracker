@@ -13,10 +13,39 @@ export type InternationalFundQuote = {
   price: number;
   changePercent: number;
   currency: string;
+  marketDataSource?:
+    | "onvista"
+    | "jpm_official"
+    | "jpm_factsheet"
+    | "eodhd"
+    | "morningstar"
+    | "yahoo";
 };
+
+export type PriceIssueCode = "missing_eodhd_api_key";
 
 export function isIsin(query: string) {
   return /^[A-Z]{2}[A-Z0-9]{10}$/.test(query.trim().toUpperCase());
+}
+
+export function isInternationalFundSymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.endsWith(".EUFUND") || normalized.startsWith("0P")) {
+    return true;
+  }
+
+  if (isIsin(normalized)) {
+    return true;
+  }
+
+  const [prefix] = normalized.split(".");
+
+  return prefix != null && isIsin(prefix);
 }
 
 export function dedupeInternationalFundResults(

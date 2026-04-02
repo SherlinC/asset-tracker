@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { AnimatedGlobe } from "@/components/noodles/AnimatedGlobe";
+import type { PortfolioHistoryRecord } from "@/components/portfolio-value-chart/types";
 import { useLanguage } from "@/hooks/useLanguage";
 import { pickLocalizedText } from "@/lib/navigation";
 import {
@@ -8,7 +9,6 @@ import {
   NOODLE_PANEL_TEXT,
   type NoodleLocation,
 } from "@/lib/noodle";
-import { trpc } from "@/lib/trpc";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
@@ -20,6 +20,8 @@ type PortfolioData = {
 
 type Props = {
   data?: PortfolioData;
+  historyData?: PortfolioHistoryRecord[];
+  historyLoading?: boolean;
   className?: string;
 };
 
@@ -37,7 +39,12 @@ function formatBowlsEn(bowls: number): string {
   return `${bowls.toFixed(0)} bowls`;
 }
 
-export default function NoodlePanel({ data, className }: Props) {
+export default function NoodlePanel({
+  data,
+  historyData,
+  historyLoading = false,
+  className,
+}: Props) {
   const { language } = useLanguage();
   const isZh = language === "zh";
   const [locationId, setLocationId] = useState<string>("chengdu");
@@ -46,29 +53,21 @@ export default function NoodlePanel({ data, className }: Props) {
     NOODLE_LOCATIONS.find(location => location.id === locationId)?.priceCNY ??
     15;
 
-  const { data: priceData, isLoading: isPriceLoading } =
-    trpc.prices.fetchSingle.useQuery(
-      { symbol: "USD", type: "currency" },
-      { enabled: true, refetchInterval: 5 * 60 * 1000 }
-    );
-  const historyQuery = trpc.portfolioHistory.get.useQuery({ days: 2 });
-
   const exchangeRate =
-    priceData?.priceCNY && priceData.priceCNY > 0
-      ? priceData.priceCNY
-      : data?.exchangeRate && data.exchangeRate > 0
-        ? data.exchangeRate
-        : DEFAULT_USD_CNY_RATE;
+    data?.exchangeRate && data.exchangeRate > 0
+      ? data.exchangeRate
+      : DEFAULT_USD_CNY_RATE;
 
   const noodleVizData = useMemo(() => {
     const totalValueUSD = data?.totalValueUSD ?? 0;
     const totalValueCNY = totalValueUSD * exchangeRate;
     const bowlsToday = noodlePriceCNY > 0 ? totalValueCNY / noodlePriceCNY : 0;
+    const resolvedHistory = historyData ?? [];
 
-    const records = (historyQuery.data ?? [])
+    const records = resolvedHistory
       .map(record => ({
         t: new Date(record.timestamp).getTime(),
-        v: parseFloat(record.totalValue),
+        v: parseFloat(String(record.totalValue)),
       }))
       .filter(record => Number.isFinite(record.t) && Number.isFinite(record.v))
       .sort((a, b) => a.t - b.t);
@@ -85,7 +84,7 @@ export default function NoodlePanel({ data, className }: Props) {
           ? deltaCNY / noodlePriceCNY
           : null,
     };
-  }, [data?.totalValueUSD, exchangeRate, historyQuery.data, noodlePriceCNY]);
+  }, [data?.totalValueUSD, exchangeRate, historyData, noodlePriceCNY]);
 
   const selectedLocation =
     NOODLE_LOCATIONS.find(location => location.id === locationId) ??
@@ -128,11 +127,9 @@ export default function NoodlePanel({ data, className }: Props) {
             })}
           </p>
           <p className="mt-1.5 text-xs text-white/60">
-            {isPriceLoading
-              ? pickLocalizedText(NOODLE_PANEL_TEXT.fxUpdating, isZh)
-              : isZh
-                ? `按 1 USD = ${exchangeRate.toFixed(4)} CNY 换算。`
-                : `1 USD = ${exchangeRate.toFixed(4)} CNY`}
+            {isZh
+              ? `按 1 USD = ${exchangeRate.toFixed(4)} CNY 换算。`
+              : `1 USD = ${exchangeRate.toFixed(4)} CNY`}
           </p>
         </div>
       </div>
@@ -221,14 +218,16 @@ export default function NoodlePanel({ data, className }: Props) {
                     : "text-rose-300"
                 }`}
               >
-                {noodleVizData.bowlsDelta == null
-                  ? pickLocalizedText(
-                      NOODLE_PANEL_TEXT.noYesterdayComparison,
-                      isZh
-                    )
-                  : isZh
-                    ? `较昨日 ${noodleVizData.bowlsDelta >= 0 ? "+" : "-"}${formatBowlsZh(Math.abs(noodleVizData.bowlsDelta)).replace(" 碗", "")} 碗`
-                    : `vs yesterday ${noodleVizData.bowlsDelta >= 0 ? "+" : "-"}${formatBowlsEn(Math.abs(noodleVizData.bowlsDelta)).replace(" bowls", "")} bowls`}
+                {historyLoading
+                  ? pickLocalizedText(NOODLE_PANEL_TEXT.comparisonLoading, isZh)
+                  : noodleVizData.bowlsDelta == null
+                    ? pickLocalizedText(
+                        NOODLE_PANEL_TEXT.noYesterdayComparison,
+                        isZh
+                      )
+                    : isZh
+                      ? `较昨日 ${noodleVizData.bowlsDelta >= 0 ? "+" : "-"}${formatBowlsZh(Math.abs(noodleVizData.bowlsDelta)).replace(" 碗", "")} 碗`
+                      : `vs yesterday ${noodleVizData.bowlsDelta >= 0 ? "+" : "-"}${formatBowlsEn(Math.abs(noodleVizData.bowlsDelta)).replace(" bowls", "")} bowls`}
               </span>
             </div>
           </div>

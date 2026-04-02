@@ -12,13 +12,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/useLanguage";
+import { usePortfolioActions } from "@/hooks/usePortfolioActions";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
 import {
   inferImportedAssetType,
   parseAssetWorkbook,
   type ImportedHoldingPreviewResult,
 } from "@/lib/excelImport";
 import { getTemplateSheetName } from "@/lib/excelTemplate";
-import { trpc } from "@/lib/trpc";
 
 type Props = {
   open: boolean;
@@ -28,7 +29,12 @@ type Props = {
 export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
   const { language } = useLanguage();
   const isZh = language === "zh";
-  const utils = trpc.useUtils();
+  const portfolioActions = usePortfolioActions();
+  const portfolioData = usePortfolioData({
+    includeSummary: false,
+    includeAssets: open,
+    includeHoldings: open,
+  });
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -36,13 +42,6 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
   const [preview, setPreview] = useState<ImportedHoldingPreviewResult | null>(
     null
   );
-  const assetsQuery = trpc.assets.list.useQuery(undefined, { enabled: open });
-  const holdingsQuery = trpc.holdings.list.useQuery(undefined, {
-    enabled: open,
-  });
-  const createAsset = trpc.assets.create.useMutation();
-  const addHolding = trpc.holdings.add.useMutation();
-
   const text = isZh
     ? {
         title: "导入 Excel 预览",
@@ -104,12 +103,12 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
 
   const rows = useMemo(() => preview?.rows ?? [], [preview?.rows]);
   const existingAssets = useMemo(
-    () => assetsQuery.data ?? [],
-    [assetsQuery.data]
+    () => portfolioData.assets,
+    [portfolioData.assets]
   );
   const existingHoldings = useMemo(
-    () => holdingsQuery.data ?? [],
-    [holdingsQuery.data]
+    () => portfolioData.holdings,
+    [portfolioData.holdings]
   );
   const rowsWithStatus = useMemo(() => {
     const knownAssetsBySymbol = new Map(
@@ -201,28 +200,30 @@ export default function ImportHoldingsDialog({ open, onOpenChange }: Props) {
 
         if (!asset) {
           const fallback = row.builtInAsset;
-          asset = await createAsset.mutateAsync({
-            symbol: row.symbol,
-            type: inferImportedAssetType(row.sheetKey),
-            name: fallback?.name ?? row.symbol,
-            baseCurrency: fallback?.currency ?? "CNY",
-          });
+          asset = await portfolioActions.createAsset(
+            {
+              symbol: row.symbol,
+              type: inferImportedAssetType(row.sheetKey),
+              name: fallback?.name ?? row.symbol,
+              baseCurrency: fallback?.currency ?? "CNY",
+            },
+            { deferInvalidate: true }
+          );
           assetCache.set(asset.symbol.toUpperCase(), asset);
         }
 
-        await addHolding.mutateAsync({
-          assetId: asset.id,
-          quantity: String(row.quantity),
-          costBasis: row.costBasis == null ? undefined : String(row.costBasis),
-        });
+        await portfolioActions.addHolding(
+          {
+            assetId: asset.id,
+            quantity: String(row.quantity),
+            costBasis:
+              row.costBasis == null ? undefined : String(row.costBasis),
+          },
+          { deferInvalidate: true }
+        );
       }
 
-      await Promise.all([
-        utils.assets.list.invalidate(),
-        utils.holdings.list.invalidate(),
-        utils.portfolio.summary.invalidate(),
-        utils.portfolioHistory.get.invalidate(),
-      ]);
+      await portfolioActions.finalizeDeferredChanges();
 
       toast.success(text.importSuccess);
       handleOpenChange(false);

@@ -3,6 +3,8 @@
  * Supports: Exchange rates (USD/HKD to CNY), Crypto (Binance/CoinGecko), Stocks (Finnhub 优先 / Yahoo 兜底)
  */
 
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+
 import { DEFAULT_EXCHANGE_RATES } from "@shared/exchangeRates";
 
 import { ENV } from "./_core/env";
@@ -56,6 +58,7 @@ function normalizeCnyBaseRates(rates: Record<string, number>) {
     USD: rates.USD != null ? 1 / rates.USD : mockExchangeRates.USD,
     HKD: rates.HKD != null ? 1 / rates.HKD : mockExchangeRates.HKD,
     EUR: rates.EUR != null ? 1 / rates.EUR : mockExchangeRates.EUR,
+    AUD: rates.AUD != null ? 1 / rates.AUD : mockExchangeRates.AUD,
     JPY: rates.JPY != null ? 1 / rates.JPY : mockExchangeRates.JPY,
     RUB: rates.RUB != null ? 1 / rates.RUB : mockExchangeRates.RUB,
     CNY: 1,
@@ -74,7 +77,7 @@ function getMedian(values: number[]) {
 }
 
 function mergeExchangeRateCandidates(candidates: Record<string, number>[]) {
-  const currencyKeys = ["USD", "HKD", "EUR", "JPY", "RUB", "CNY"];
+  const currencyKeys = ["USD", "HKD", "EUR", "AUD", "JPY", "RUB", "CNY"];
 
   return Object.fromEntries(
     currencyKeys.map(currency => {
@@ -124,7 +127,7 @@ async function fetchExchangeRatesFromOpenErApi() {
 
 async function fetchExchangeRatesFromFrankfurter() {
   const response = await fetch(
-    "https://api.frankfurter.app/latest?from=CNY&to=USD,HKD,EUR,JPY,RUB",
+    "https://api.frankfurter.app/latest?from=CNY&to=USD,HKD,EUR,AUD,JPY,RUB",
     {
       headers: { Accept: "application/json" },
     }
@@ -258,7 +261,7 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
 
         if (result) {
           console.log(
-            `[${provider.name}] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}, RUB/CNY: ${result.RUB.toFixed(4)}`
+            `[${provider.name}] USD/CNY: ${result.USD.toFixed(4)}, HKD/CNY: ${result.HKD.toFixed(4)}, EUR/CNY: ${result.EUR.toFixed(4)}, AUD/CNY: ${result.AUD.toFixed(4)}, RUB/CNY: ${result.RUB.toFixed(4)}`
           );
         }
 
@@ -288,7 +291,7 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
     if (successfulResults.length > 1) {
       const merged = mergeExchangeRateCandidates(successfulResults);
       console.log(
-        `[ExchangeRates] Consensus USD/CNY: ${merged.USD.toFixed(4)}, HKD/CNY: ${merged.HKD.toFixed(4)}, EUR/CNY: ${merged.EUR.toFixed(4)}, RUB/CNY: ${merged.RUB.toFixed(4)}`
+        `[ExchangeRates] Consensus USD/CNY: ${merged.USD.toFixed(4)}, HKD/CNY: ${merged.HKD.toFixed(4)}, EUR/CNY: ${merged.EUR.toFixed(4)}, AUD/CNY: ${merged.AUD.toFixed(4)}, RUB/CNY: ${merged.RUB.toFixed(4)}`
       );
       return merged;
     }
@@ -473,10 +476,19 @@ async function fetchStockPricesFromFinnhub(
   return quotes;
 }
 
-const YAHOO_FIRST_STOCK_SUFFIXES = [".SS", ".SZ", ".BJ", ".HK"];
+const EASTMONEY_FIRST_STOCK_SUFFIXES = [".SS", ".SZ", ".BJ"];
+const YAHOO_FIRST_STOCK_SUFFIXES = [".HK"];
 
 function normalizeStockSymbolForRouting(symbol: string) {
   return symbol.trim().toUpperCase();
+}
+
+function shouldPreferEastMoneyForStockSymbol(symbol: string) {
+  const normalizedSymbol = normalizeStockSymbolForRouting(symbol);
+
+  return EASTMONEY_FIRST_STOCK_SUFFIXES.some(suffix =>
+    normalizedSymbol.endsWith(suffix)
+  );
 }
 
 function shouldPreferYahooForStockSymbol(symbol: string) {
@@ -485,6 +497,308 @@ function shouldPreferYahooForStockSymbol(symbol: string) {
   return YAHOO_FIRST_STOCK_SUFFIXES.some(suffix =>
     normalizedSymbol.endsWith(suffix)
   );
+}
+
+function shouldTryStooqForStockSymbol(symbol: string) {
+  const normalizedSymbol = normalizeStockSymbolForRouting(symbol);
+
+  return /^[A-Z][A-Z0-9]*$/.test(normalizedSymbol);
+}
+
+async function fetchStockPricesFromStooq(
+  symbols: string[]
+): Promise<Record<string, StockQuote>> {
+  const quotes: Record<string, StockQuote> = {};
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  await Promise.all(
+    symbols.map(async symbol => {
+      const stooqSymbol = `${symbol.trim().toLowerCase()}.us`;
+      const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&i=d`;
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const res = await fetch(url, {
+            headers: {
+              Accept: "text/plain",
+              "User-Agent":
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            },
+            signal: controller.signal,
+          });
+          if (!res.ok) continue;
+
+          const csv = (await res.text()).trim();
+          const [row] = csv.split(/\r?\n/).filter(Boolean);
+          if (!row) continue;
+
+          const columns = row.split(",").map(value => value.trim());
+          const open = Number.parseFloat(columns[3] ?? "");
+          const close = Number.parseFloat(columns[6] ?? "");
+
+          if (!Number.isFinite(close) || close <= 0) {
+            continue;
+          }
+
+          const change = Number.isFinite(open) && open > 0 ? close - open : 0;
+          const changePercent =
+            Number.isFinite(open) && open > 0 ? (change / open) * 100 : 0;
+
+          quotes[symbol] = {
+            symbol,
+            price: close,
+            change,
+            changePercent,
+            currency: "USD",
+          };
+
+          console.log(
+            `[Stooq] ${symbol}: USD ${close.toFixed(2)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+          );
+          return;
+        } catch (err) {
+          if (attempt === 2) {
+            console.warn(`[Stooq] ${symbol}:`, (err as Error).message);
+          }
+        }
+      }
+    })
+  );
+
+  clearTimeout(timeout);
+  return quotes;
+}
+
+type EastMoneyStockQuoteResponse = {
+  data?: {
+    f43?: number;
+    f57?: string;
+    f58?: string;
+    f169?: number;
+    f170?: number;
+  };
+};
+
+type EastMoneyKlineResponse = {
+  data?: {
+    klines?: string[];
+  };
+};
+
+function getEastMoneySecIdForStockSymbol(symbol: string) {
+  const normalizedSymbol = normalizeStockSymbolForRouting(symbol);
+  const match = normalizedSymbol.match(/^(\d{6})\.(SS|SZ|BJ)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, code, market] = match;
+
+  if (market === "SS") {
+    return `1.${code}`;
+  }
+
+  return `0.${code}`;
+}
+
+function parseEastMoneyKlineClose(entry: string | undefined) {
+  if (!entry) {
+    return null;
+  }
+
+  const [, openValue, closeValue] = entry.split(",");
+  const open = Number.parseFloat(openValue ?? "");
+  const close = Number.parseFloat(closeValue ?? "");
+
+  if (!Number.isFinite(close) || close <= 0) {
+    return null;
+  }
+
+  return {
+    open: Number.isFinite(open) && open > 0 ? open : null,
+    close,
+  };
+}
+
+async function fetchEastMoneyLatestCloseViaKline(
+  secid: string,
+  signal: AbortSignal
+) {
+  const url = new URL("https://push2his.eastmoney.com/api/qt/stock/kline/get");
+  url.searchParams.set("secid", secid);
+  url.searchParams.set("fields1", "f1,f2,f3");
+  url.searchParams.set("fields2", "f51,f52,f53");
+  url.searchParams.set("klt", "101");
+  url.searchParams.set("fqt", "1");
+  url.searchParams.set("end", "20500101");
+  url.searchParams.set("lmt", "2");
+
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/json,text/plain,*/*",
+      Referer: "https://quote.eastmoney.com/",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    },
+    signal,
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const data = (await res.json()) as EastMoneyKlineResponse;
+  const klines = data.data?.klines ?? [];
+  const latest = parseEastMoneyKlineClose(klines.at(-1));
+
+  if (!latest) {
+    return null;
+  }
+
+  const previous = parseEastMoneyKlineClose(
+    klines.length > 1 ? klines.at(-2) : undefined
+  );
+
+  return {
+    price: latest.close,
+    previousClose: previous?.close ?? latest.open ?? null,
+  };
+}
+
+async function fetchOneSymbolFromEastMoney(
+  symbol: string,
+  signal: AbortSignal
+): Promise<StockQuote | null> {
+  const secid = getEastMoneySecIdForStockSymbol(symbol);
+
+  if (!secid) {
+    return null;
+  }
+
+  try {
+    const url = new URL("https://push2.eastmoney.com/api/qt/stock/get");
+    url.searchParams.set("secid", secid);
+    url.searchParams.set("fields", "f43,f57,f58,f169,f170");
+
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+        Referer: "https://quote.eastmoney.com/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      signal,
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const payload = (await res.json()) as EastMoneyStockQuoteResponse;
+    const data = payload.data;
+    const rawPrice = data?.f43;
+
+    if (!Number.isFinite(rawPrice) || rawPrice == null || rawPrice <= 0) {
+      const fallback = await fetchEastMoneyLatestCloseViaKline(secid, signal);
+
+      if (!fallback) {
+        return null;
+      }
+
+      const change =
+        fallback.previousClose != null && fallback.previousClose > 0
+          ? fallback.price - fallback.previousClose
+          : 0;
+      const changePercent =
+        fallback.previousClose != null && fallback.previousClose > 0
+          ? (change / fallback.previousClose) * 100
+          : 0;
+
+      console.log(
+        `[EastMoney Stock/KLine] ${symbol}: CNY ${fallback.price.toFixed(2)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+      );
+
+      return {
+        symbol,
+        price: fallback.price,
+        change,
+        changePercent,
+        currency: "CNY",
+      };
+    }
+
+    const price = rawPrice / 100;
+    const change = Number.isFinite(data?.f169) ? (data?.f169 ?? 0) / 100 : 0;
+    const changePercent = Number.isFinite(data?.f170)
+      ? (data?.f170 ?? 0) / 100
+      : 0;
+
+    console.log(
+      `[EastMoney Stock] ${symbol}: CNY ${price.toFixed(2)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+    );
+
+    return {
+      symbol,
+      price,
+      change,
+      changePercent,
+      currency: "CNY",
+    };
+  } catch (err) {
+    console.warn(`[EastMoney Stock] ${symbol}:`, (err as Error).message);
+  }
+
+  try {
+    const fallback = await fetchEastMoneyLatestCloseViaKline(secid, signal);
+
+    if (!fallback) {
+      return null;
+    }
+
+    const change =
+      fallback.previousClose != null && fallback.previousClose > 0
+        ? fallback.price - fallback.previousClose
+        : 0;
+    const changePercent =
+      fallback.previousClose != null && fallback.previousClose > 0
+        ? (change / fallback.previousClose) * 100
+        : 0;
+
+    console.log(
+      `[EastMoney Stock/KLine] ${symbol}: CNY ${fallback.price.toFixed(2)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+    );
+
+    return {
+      symbol,
+      price: fallback.price,
+      change,
+      changePercent,
+      currency: "CNY",
+    };
+  } catch (err) {
+    console.warn(`[EastMoney Stock/KLine] ${symbol}:`, (err as Error).message);
+    return null;
+  }
+}
+
+async function fetchStockPricesFromEastMoney(
+  symbols: string[]
+): Promise<Record<string, StockQuote>> {
+  const quotes: Record<string, StockQuote> = {};
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  await Promise.all(
+    symbols.map(async symbol => {
+      const q = await fetchOneSymbolFromEastMoney(symbol, controller.signal);
+      if (q) quotes[symbol] = q;
+    })
+  );
+
+  clearTimeout(timeout);
+  return quotes;
 }
 
 const YAHOO_CHART_HOSTS = [
@@ -549,7 +863,7 @@ async function fetchOneSymbolFromYahoo(
 
 /**
  * Yahoo Finance 行情（非官方接口，无需 key）
- * 支持：美股(AAPL)、港股(0700.HK)、日股(7203.T)、A股(000001.SZ/600519.SS)
+ * 主要用于港股/国际股票兜底；A 股优先走东方财富，避免 Yahoo 对 A 股 403/延迟问题
  * 添加股票时 symbol 请用 Yahoo 格式，见 https://finance.yahoo.com
  */
 async function fetchStockPricesFromYahoo(
@@ -571,8 +885,8 @@ async function fetchStockPricesFromYahoo(
 }
 
 /**
- * 股票价格：按市场路由到 Finnhub / Yahoo，再走 mock 兜底
- * 美股及美股类 ETF 优先 Finnhub；港股/A股/北交所优先 Yahoo，避免非美股误走 USD 路径
+ * 股票价格：按市场路由到 EastMoney / Finnhub / Yahoo，再走 mock 兜底
+ * A股/北交所优先东方财富；港股优先 Yahoo；美股及美股类 ETF 优先 Finnhub
  */
 export async function fetchStockPrices(
   symbols: string[] = ["AAPL", "GOOGL", "TSLA"]
@@ -580,20 +894,40 @@ export async function fetchStockPrices(
   if (symbols.length === 0) return {};
 
   let quotes: Record<string, StockQuote> = {};
+  const eastMoneyFirstSymbols = symbols.filter(
+    shouldPreferEastMoneyForStockSymbol
+  );
   const yahooFirstSymbols = symbols.filter(shouldPreferYahooForStockSymbol);
   const finnhubFirstSymbols = symbols.filter(
-    symbol => !shouldPreferYahooForStockSymbol(symbol)
+    symbol =>
+      !shouldPreferEastMoneyForStockSymbol(symbol) &&
+      !shouldPreferYahooForStockSymbol(symbol)
   );
 
+  if (eastMoneyFirstSymbols.length > 0) {
+    quotes = await fetchStockPricesFromEastMoney(eastMoneyFirstSymbols);
+  }
+
   if (ENV.finnhubApiKey && finnhubFirstSymbols.length > 0) {
-    quotes = await fetchStockPricesFromFinnhub(
+    const finnhubQuotes = await fetchStockPricesFromFinnhub(
       finnhubFirstSymbols,
       ENV.finnhubApiKey
     );
+    for (const s of Object.keys(finnhubQuotes)) quotes[s] = finnhubQuotes[s];
+  }
+
+  const stooqSymbols = finnhubFirstSymbols.filter(
+    symbol => !quotes[symbol] && shouldTryStooqForStockSymbol(symbol)
+  );
+
+  if (stooqSymbols.length > 0) {
+    const stooqQuotes = await fetchStockPricesFromStooq(stooqSymbols);
+    for (const s of Object.keys(stooqQuotes)) quotes[s] = stooqQuotes[s];
   }
 
   const yahooSymbols = Array.from(
     new Set([
+      ...eastMoneyFirstSymbols.filter(symbol => !quotes[symbol]),
       ...yahooFirstSymbols,
       ...finnhubFirstSymbols.filter(symbol => !quotes[symbol]),
     ])
@@ -714,6 +1048,414 @@ type MorningstarFundQuoteResponse = {
   currency?: string;
 };
 
+type OnvistaFundQuoteCandidate = {
+  market?: {
+    name?: string;
+  };
+  isoCurrency?: string;
+  last?: number;
+  previousLast?: number;
+  performancePct?: number;
+  datetimeLast?: string;
+};
+
+type JpmProductDataResponse = {
+  fundData?: {
+    currencyCode?: string;
+    name?: string;
+    shareClass?: {
+      currencyCode?: string;
+      nav?: {
+        price?: number;
+        date?: string;
+        navEffectiveDate?: string;
+        changePercentage?: number;
+        currencyCode?: string;
+      };
+    };
+  };
+};
+
+const JPM_FACTSHEET_BY_ISIN: Record<
+  string,
+  {
+    factsheetUrl: string;
+    currency: string;
+  }
+> = {
+  LU1128926489: {
+    factsheetUrl:
+      "https://jp.techrules.com/rebrandingPDF/LoadPdf.aspx?ShareClassId=11957&country=LU&lang=EN&paramMIFID=YES",
+    currency: "USD",
+  },
+};
+
+function extractIsinFromFundSymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^[A-Z]{2}[A-Z0-9]{10}$/.test(normalized)) {
+    return normalized;
+  }
+
+  const [prefix] = normalized.split(".");
+
+  if (prefix && /^[A-Z]{2}[A-Z0-9]{10}$/.test(prefix)) {
+    return prefix;
+  }
+
+  return null;
+}
+
+function walkJsonTree(
+  value: unknown,
+  visit: (node: Record<string, unknown>) => void
+) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      walkJsonTree(item, visit);
+    }
+
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    const node = value as Record<string, unknown>;
+    visit(node);
+
+    for (const child of Object.values(node)) {
+      walkJsonTree(child, visit);
+    }
+  }
+}
+
+function selectBestOnvistaFundQuote(candidates: OnvistaFundQuoteCandidate[]) {
+  const rankedCurrencies = ["USD", "EUR", "GBP", "HKD", "JPY", "CNY"];
+
+  return [...candidates].sort((left, right) => {
+    const leftRank = rankedCurrencies.indexOf(left.isoCurrency ?? "");
+    const rightRank = rankedCurrencies.indexOf(right.isoCurrency ?? "");
+
+    return (
+      (leftRank === -1 ? rankedCurrencies.length : leftRank) -
+      (rightRank === -1 ? rankedCurrencies.length : rightRank)
+    );
+  })[0];
+}
+
+async function extractTextFromPdfBuffer(data: Uint8Array) {
+  const pdf = await getDocument({
+    data,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+  }).promise;
+
+  let text = "";
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+
+    text += `${content.items
+      .map(item => ("str" in item ? item.str : ""))
+      .join(" ")}\n`;
+  }
+
+  return text;
+}
+
+async function readDocumentText(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("pdf")) {
+    return response.text();
+  }
+
+  const data = new Uint8Array(await response.arrayBuffer());
+  return extractTextFromPdfBuffer(data);
+}
+
+async function fetchInternationalFundPriceFromOnvista(
+  symbol: string
+): Promise<InternationalFundQuote | null> {
+  const isin = extractIsinFromFundSymbol(symbol);
+
+  if (!isin) {
+    return null;
+  }
+
+  try {
+    const url = new URL("https://www.onvista.de/suche");
+    url.searchParams.set("searchValue", isin);
+
+    const res = await fetch(url, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml,*/*",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const html = await res.text();
+    const nextDataMatch = html.match(
+      /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/
+    );
+
+    if (!nextDataMatch?.[1]) {
+      return null;
+    }
+
+    const nextData = JSON.parse(nextDataMatch[1]) as unknown;
+    const candidates: OnvistaFundQuoteCandidate[] = [];
+
+    walkJsonTree(nextData, node => {
+      if (
+        node.market &&
+        typeof node.market === "object" &&
+        (node.market as { name?: string }).name === "KVG" &&
+        typeof node.last === "number" &&
+        Number.isFinite(node.last) &&
+        node.last > 0
+      ) {
+        candidates.push({
+          market: node.market as { name?: string },
+          isoCurrency:
+            typeof node.isoCurrency === "string" ? node.isoCurrency : undefined,
+          last: node.last,
+          previousLast:
+            typeof node.previousLast === "number"
+              ? node.previousLast
+              : undefined,
+          performancePct:
+            typeof node.performancePct === "number"
+              ? node.performancePct
+              : undefined,
+          datetimeLast:
+            typeof node.datetimeLast === "string"
+              ? node.datetimeLast
+              : undefined,
+        });
+      }
+    });
+
+    const best = selectBestOnvistaFundQuote(candidates);
+
+    if (!best?.last || !best.isoCurrency) {
+      return null;
+    }
+
+    const changePercent =
+      typeof best.performancePct === "number" &&
+      Number.isFinite(best.performancePct)
+        ? best.performancePct
+        : best.previousLast && best.previousLast > 0
+          ? ((best.last - best.previousLast) / best.previousLast) * 100
+          : 0;
+
+    console.log(
+      `[Onvista Fund Price] ${isin}: ${best.isoCurrency} ${best.last.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)${best.datetimeLast ? ` @ ${best.datetimeLast}` : ""}`
+    );
+
+    return {
+      price: best.last,
+      changePercent,
+      currency: best.isoCurrency,
+      marketDataSource: "onvista",
+    };
+  } catch (err) {
+    console.warn("[Onvista Fund Price]", symbol, (err as Error).message);
+    return null;
+  }
+}
+
+async function fetchInternationalFundPriceFromJpmOfficial(
+  symbol: string
+): Promise<InternationalFundQuote | null> {
+  const isin = extractIsinFromFundSymbol(symbol);
+
+  if (!isin) {
+    return null;
+  }
+
+  const factsheet = JPM_FACTSHEET_BY_ISIN[isin];
+
+  if (!factsheet) {
+    try {
+      const productDataUrl = new URL(
+        "https://am.jpmorgan.com/FundsMarketingHandler/product-data"
+      );
+      productDataUrl.searchParams.set("cusip", isin);
+      productDataUrl.searchParams.set("country", "lu");
+      productDataUrl.searchParams.set("role", "adv");
+      productDataUrl.searchParams.set("language", "en");
+
+      const response = await fetch(productDataUrl, {
+        headers: {
+          Accept: "application/json,text/plain,*/*",
+          Referer: `https://am.jpmorgan.com/lu/en/asset-management/adv/products/${isin.toLowerCase()}`,
+          "User-Agent": "Mozilla/5.0",
+        },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      if (!(response.headers.get("content-type") ?? "").includes("json")) {
+        return null;
+      }
+
+      const data = (await response.json()) as JpmProductDataResponse;
+      const nav = data.fundData?.shareClass?.nav;
+      const price = nav?.price;
+
+      if (price == null || !Number.isFinite(price) || price <= 0) {
+        return null;
+      }
+
+      const navData = nav;
+
+      if (!navData) {
+        return null;
+      }
+
+      const currency =
+        navData.currencyCode?.trim() ||
+        data.fundData?.shareClass?.currencyCode?.trim() ||
+        data.fundData?.currencyCode?.trim() ||
+        "USD";
+      const changePercent =
+        typeof navData.changePercentage === "number" &&
+        Number.isFinite(navData.changePercentage)
+          ? navData.changePercentage
+          : 0;
+      const effectiveDate = navData.navEffectiveDate ?? navData.date ?? null;
+
+      console.log(
+        `[JPM Official Fund Price] ${isin}: ${currency} ${price.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)${effectiveDate ? ` @ ${effectiveDate}` : ""}`
+      );
+
+      return {
+        price,
+        changePercent,
+        currency,
+        marketDataSource: "jpm_official",
+      };
+    } catch (err) {
+      console.warn("[JPM Official Fund Price]", symbol, (err as Error).message);
+      return null;
+    }
+  }
+
+  try {
+    const productDataUrl = new URL(
+      "https://am.jpmorgan.com/FundsMarketingHandler/product-data"
+    );
+    productDataUrl.searchParams.set("cusip", isin);
+    productDataUrl.searchParams.set("country", "lu");
+    productDataUrl.searchParams.set("role", "adv");
+    productDataUrl.searchParams.set("language", "en");
+
+    const productDataRes = await fetch(productDataUrl, {
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+        Referer: `https://am.jpmorgan.com/lu/en/asset-management/adv/products/${isin.toLowerCase()}`,
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+
+    if (
+      productDataRes.ok &&
+      (productDataRes.headers.get("content-type") ?? "").includes("json")
+    ) {
+      const data = (await productDataRes.json()) as JpmProductDataResponse;
+      const nav = data.fundData?.shareClass?.nav;
+      const price = nav?.price;
+
+      if (price != null && Number.isFinite(price) && price > 0) {
+        const navData = nav;
+
+        if (!navData) {
+          return null;
+        }
+
+        const currency =
+          navData.currencyCode?.trim() ||
+          data.fundData?.shareClass?.currencyCode?.trim() ||
+          data.fundData?.currencyCode?.trim() ||
+          factsheet.currency;
+        const changePercent =
+          typeof navData.changePercentage === "number" &&
+          Number.isFinite(navData.changePercentage)
+            ? navData.changePercentage
+            : 0;
+        const effectiveDate = navData.navEffectiveDate ?? navData.date ?? null;
+
+        console.log(
+          `[JPM Official Fund Price] ${isin}: ${currency} ${price.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)${effectiveDate ? ` @ ${effectiveDate}` : ""}`
+        );
+
+        return {
+          price,
+          changePercent,
+          currency,
+          marketDataSource: "jpm_official",
+        };
+      }
+    }
+
+    const response = await fetch(factsheet.factsheetUrl, {
+      headers: {
+        Accept: "application/pdf,text/plain,*/*",
+        Referer: "https://am.jpmorgan.com/",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const text = await readDocumentText(response);
+    const navMatch = text.match(/NAV\s+([A-Z]{3})\s+([0-9]+(?:\.[0-9]+)?)/i);
+
+    if (!navMatch) {
+      return null;
+    }
+
+    const price = Number.parseFloat(navMatch[2] ?? "");
+
+    if (!Number.isFinite(price) || price <= 0) {
+      return null;
+    }
+
+    const currency = (navMatch[1] ?? factsheet.currency).trim().toUpperCase();
+    const asOfMatch = text.match(
+      /Factsheet\s*\|\s*([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4})/i
+    );
+
+    console.log(
+      `[JPM Official Fund Price] ${isin}: ${currency} ${price.toFixed(4)}${asOfMatch?.[1] ? ` @ ${asOfMatch[1]}` : ""}`
+    );
+
+    return {
+      price,
+      changePercent: 0,
+      currency,
+      marketDataSource: "jpm_factsheet",
+    };
+  } catch (err) {
+    console.warn("[JPM Official Fund Price]", symbol, (err as Error).message);
+    return null;
+  }
+}
+
 async function fetchInternationalFundPriceFromEodhd(
   symbol: string
 ): Promise<InternationalFundQuote | null> {
@@ -780,6 +1522,7 @@ async function fetchInternationalFundPriceFromEodhd(
       price,
       changePercent,
       currency: meta?.Currency?.trim() || "USD",
+      marketDataSource: "eodhd",
     };
   } catch (err) {
     console.warn("[EODHD Fund Price]", symbol, (err as Error).message);
@@ -817,6 +1560,14 @@ async function fetchInternationalFundPriceFromMorningstar(
       return null;
     }
 
+    if (
+      !(
+        screenerRes.headers?.get?.("content-type") ?? "application/json"
+      ).includes("json")
+    ) {
+      return null;
+    }
+
     const screenerData =
       (await screenerRes.json()) as MorningstarScreenerResponse;
     const securityId = screenerData.results?.[0]?.meta?.securityID;
@@ -847,6 +1598,14 @@ async function fetchInternationalFundPriceFromMorningstar(
       return null;
     }
 
+    if (
+      !(quoteRes.headers?.get?.("content-type") ?? "application/json").includes(
+        "json"
+      )
+    ) {
+      return null;
+    }
+
     const quoteData = (await quoteRes.json()) as MorningstarFundQuoteResponse;
     const price = quoteData.latestPrice;
 
@@ -861,6 +1620,7 @@ async function fetchInternationalFundPriceFromMorningstar(
           ? quoteData.trailing1DayReturn
           : 0,
       currency: quoteData.currency?.trim() || "USD",
+      marketDataSource: "morningstar",
     };
   } catch (err) {
     console.warn("[Morningstar Fund Price]", symbol, (err as Error).message);
@@ -874,6 +1634,7 @@ async function fetchInternationalFundPriceFromYahoo(
   const normalized = symbol.trim().toUpperCase();
   if (
     !normalized ||
+    normalized.endsWith(".EUFUND") ||
     (!normalized.includes(".") && !normalized.startsWith("0P"))
   ) {
     return null;
@@ -892,6 +1653,7 @@ async function fetchInternationalFundPriceFromYahoo(
       price: quote.price,
       changePercent: quote.changePercent,
       currency: quote.currency ?? "USD",
+      marketDataSource: "yahoo",
     };
   } finally {
     clearTimeout(timeout);
@@ -939,7 +1701,27 @@ async function fetchFundPriceFromEastMoneyEtfQuote(
       const rawChangePercent = data.data?.f170;
 
       if (rawPrice == null || !Number.isFinite(rawPrice) || rawPrice <= 0) {
-        continue;
+        const fallback = await fetchEastMoneyLatestCloseViaKline(
+          secid,
+          AbortSignal.timeout(12000)
+        );
+
+        if (!fallback) {
+          continue;
+        }
+
+        const changePercent =
+          fallback.previousClose != null && fallback.previousClose > 0
+            ? ((fallback.price - fallback.previousClose) /
+                fallback.previousClose) *
+              100
+            : 0;
+
+        console.log(
+          `[EastMoney ETF KLine] ${code} via ${secid}: ¥${fallback.price.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+        );
+
+        return { priceCNY: fallback.price, changePercent };
       }
 
       const priceCNY = rawPrice / 1000;
@@ -958,6 +1740,35 @@ async function fetchFundPriceFromEastMoneyEtfQuote(
         `[EastMoney ETF Quote] ${code} via ${secid}:`,
         (err as Error).message
       );
+
+      try {
+        const fallback = await fetchEastMoneyLatestCloseViaKline(
+          secid,
+          AbortSignal.timeout(12000)
+        );
+
+        if (!fallback) {
+          continue;
+        }
+
+        const changePercent =
+          fallback.previousClose != null && fallback.previousClose > 0
+            ? ((fallback.price - fallback.previousClose) /
+                fallback.previousClose) *
+              100
+            : 0;
+
+        console.log(
+          `[EastMoney ETF KLine] ${code} via ${secid}: ¥${fallback.price.toFixed(4)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%)`
+        );
+
+        return { priceCNY: fallback.price, changePercent };
+      } catch (fallbackErr) {
+        console.warn(
+          `[EastMoney ETF KLine] ${code} via ${secid}:`,
+          (fallbackErr as Error).message
+        );
+      }
     }
   }
 
@@ -1015,10 +1826,23 @@ export async function fetchAssetPrice(
   symbol: string,
   type: string,
   exchangeRates?: Record<string, number>
-): Promise<{ priceUSD: number; priceCNY: number; change24h: number }> {
+): Promise<{
+  priceUSD: number;
+  priceCNY: number;
+  change24h: number;
+  marketDataSource?:
+    | "onvista"
+    | "jpm_official"
+    | "jpm_factsheet"
+    | "eodhd"
+    | "morningstar"
+    | "yahoo";
+}> {
   try {
     if (type === "fund") {
       const internationalFundData = await getFirstSuccessfulFundQuote([
+        () => fetchInternationalFundPriceFromOnvista(symbol),
+        () => fetchInternationalFundPriceFromJpmOfficial(symbol),
         () => fetchInternationalFundPriceFromEodhd(symbol),
         () => fetchInternationalFundPriceFromMorningstar(symbol),
         () => fetchInternationalFundPriceFromYahoo(symbol),
@@ -1036,6 +1860,7 @@ export async function fetchAssetPrice(
           priceUSD,
           priceCNY,
           change24h: internationalFundData.changePercent,
+          marketDataSource: internationalFundData.marketDataSource,
         };
       }
 

@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as assetPricing from "./assetPricing";
+import * as db from "./db";
+import * as priceService from "./priceService";
+import { appRouter } from "./routers";
+
+import type { TrpcContext } from "./_core/context";
+import type * as assetPricingModule from "./assetPricing";
+import type * as dbModule from "./db";
+import type * as priceServiceModule from "./priceService";
+
 vi.mock("./db", async () => {
-  const actual = await vi.importActual<typeof import("./db")>("./db");
+  const actual = await vi.importActual<typeof dbModule>("./db");
 
   return {
     ...actual,
@@ -10,8 +20,9 @@ vi.mock("./db", async () => {
 });
 
 vi.mock("./priceService", async () => {
-  const actual =
-    await vi.importActual<typeof import("./priceService")>("./priceService");
+  const actual = await vi.importActual<typeof priceServiceModule>(
+    "./priceService"
+  );
 
   return {
     ...actual,
@@ -20,21 +31,15 @@ vi.mock("./priceService", async () => {
 });
 
 vi.mock("./assetPricing", async () => {
-  const actual =
-    await vi.importActual<typeof import("./assetPricing")>("./assetPricing");
+  const actual = await vi.importActual<typeof assetPricingModule>(
+    "./assetPricing"
+  );
 
   return {
     ...actual,
     fetchAssetPriceWithFallback: vi.fn(),
   };
 });
-
-import { appRouter } from "./routers";
-import * as assetPricing from "./assetPricing";
-import * as db from "./db";
-import * as priceService from "./priceService";
-
-import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 

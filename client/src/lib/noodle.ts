@@ -62,6 +62,10 @@ export const NOODLE_PANEL_TEXT = {
     zh: "暂无昨日对比",
     en: "No yesterday comparison",
   },
+  comparisonLoading: {
+    zh: "正在载入对比数据...",
+    en: "Loading comparison...",
+  },
   threeBowlsPerDay: {
     zh: "每天三碗",
     en: "3 bowls / day",

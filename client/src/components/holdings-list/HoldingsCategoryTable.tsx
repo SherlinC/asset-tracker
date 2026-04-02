@@ -2,7 +2,6 @@ import {
   ChevronDown,
   ChevronUp,
   Edit2,
-  ExternalLink,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -42,7 +41,6 @@ type Props = {
   groups: AggregatedHolding[];
   expandedAssets: Record<number, boolean>;
   onToggleExpanded: (assetId: number) => void;
-  onNavigateToAsset: (assetId: number) => void;
   onStartEdit: React.Dispatch<React.SetStateAction<EditHoldingState | null>>;
   onExpandAsset: (assetId: number) => void;
   onDeleteHolding: (holdingId: number) => void;
@@ -57,7 +55,6 @@ export function HoldingsCategoryTable({
   groups,
   expandedAssets,
   onToggleExpanded,
-  onNavigateToAsset,
   onStartEdit,
   onExpandAsset,
   onDeleteHolding,
@@ -136,6 +133,16 @@ export function HoldingsCategoryTable({
                   : profitLossUSD * exchangeRate
                 : null;
             const symbol = currencyDisplay === "USD" ? "$" : "¥";
+            const issueMessage =
+              group.issueCode === "missing_eodhd_api_key"
+                ? isZh
+                  ? currentPriceUSD > 0
+                    ? "缺少行情源配置，当前显示缓存价格"
+                    : "缺少行情源配置，当前无法获取价格"
+                  : currentPriceUSD > 0
+                    ? "Missing market data configuration; showing cached price"
+                    : "Missing market data configuration; price unavailable"
+                : null;
 
             return (
               <Fragment key={asset.id}>
@@ -163,14 +170,9 @@ export function HoldingsCategoryTable({
                           <ChevronDown className="h-4 w-4" />
                         )}
                       </Button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateToAsset(asset.id)}
-                        className="text-left transition-opacity hover:opacity-80"
-                      >
+                      <div className="text-left">
                         <p className="flex items-center gap-1 font-semibold text-foreground">
                           {asset.symbol}
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {getLocalizedAssetName(
@@ -179,12 +181,17 @@ export function HoldingsCategoryTable({
                             isZh
                           )}
                         </p>
+                        {issueMessage ? (
+                          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                            {issueMessage}
+                          </p>
+                        ) : null}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {isZh
                             ? `${records.length} 条操作记录`
                             : `${records.length} operation record${records.length > 1 ? "s" : ""}`}
                         </p>
-                      </button>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -270,12 +277,15 @@ export function HoldingsCategoryTable({
                               id: first.holding.id,
                               quantity: first.holding.quantity,
                               costBasis: first.holding.costBasis ?? "",
+                              annualInterestRate:
+                                first.holding.annualInterestRate ?? "",
                               assetName: getLocalizedAssetName(
                                 asset.symbol,
                                 asset.name,
                                 isZh
                               ),
                               symbol: asset.symbol,
+                              assetType: asset.type,
                             });
                             onExpandAsset(asset.id);
                           }
@@ -329,6 +339,12 @@ export function HoldingsCategoryTable({
                                       )
                                     : "-"}
                                 </p>
+                                {holding.annualInterestRate ? (
+                                  <p className="text-sm text-muted-foreground">
+                                    {isZh ? "年利率：" : "Annual rate: "}
+                                    {holding.annualInterestRate}%
+                                  </p>
+                                ) : null}
                               </div>
                               <div className="flex justify-end gap-2">
                                 <Button
@@ -339,12 +355,15 @@ export function HoldingsCategoryTable({
                                       id: holding.id,
                                       quantity: holding.quantity,
                                       costBasis: holding.costBasis ?? "",
+                                      annualInterestRate:
+                                        holding.annualInterestRate ?? "",
                                       assetName: getLocalizedAssetName(
                                         asset.symbol,
                                         asset.name,
                                         isZh
                                       ),
                                       symbol: asset.symbol,
+                                      assetType: asset.type,
                                     });
                                   }}
                                 >

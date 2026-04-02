@@ -12,7 +12,6 @@ import {
 } from "recharts";
 
 import { useLanguage } from "@/hooks/useLanguage";
-import { trpc } from "@/lib/trpc";
 
 import { ChartTooltip } from "./portfolio-value-chart/ChartTooltip";
 import { SelectedPointDetails } from "./portfolio-value-chart/SelectedPointDetails";
@@ -22,16 +21,22 @@ import {
   buildYAxisDomain,
   formatYAxisTick,
   getDataPointInfo,
-  getHistoryDays,
 } from "./portfolio-value-chart/utils";
+import { Skeleton } from "./ui/skeleton";
 
-import type { AxisLabelMode, TimeRange } from "./portfolio-value-chart/types";
+import type {
+  AxisLabelMode,
+  PortfolioHistoryRecord,
+  TimeRange,
+} from "./portfolio-value-chart/types";
 
 type Props = {
   onAssetHover?: (assetId?: number) => void;
   highlightedAssetId?: number;
   isZh?: boolean;
   timeRange?: TimeRange;
+  historyData: PortfolioHistoryRecord[];
+  loading?: boolean;
 };
 
 export default function PortfolioValueChart({
@@ -39,6 +44,8 @@ export default function PortfolioValueChart({
   highlightedAssetId,
   isZh,
   timeRange,
+  historyData,
+  loading = false,
 }: Props) {
   const { language } = useLanguage();
   const resolvedIsZh = isZh ?? language === "zh";
@@ -49,10 +56,6 @@ export default function PortfolioValueChart({
   );
   const lastHoveredIndexRef = useRef<number | null>(null);
 
-  const historyQuery = trpc.portfolioHistory.get.useQuery({
-    days: getHistoryDays(resolvedTimeRange),
-  });
-
   void onAssetHover;
   void highlightedAssetId;
 
@@ -62,8 +65,8 @@ export default function PortfolioValueChart({
     assetAddDayFormatted,
     assetAddDayValue,
   } = useMemo(
-    () => buildChartData(historyQuery.data ?? [], resolvedTimeRange),
-    [historyQuery.data, resolvedTimeRange]
+    () => buildChartData(historyData, resolvedTimeRange),
+    [historyData, resolvedTimeRange]
   );
   const stats = useMemo(() => buildChartStats(chartData), [chartData]);
   const { span, yDomainMin, yDomainMax } = useMemo(
@@ -85,6 +88,7 @@ export default function PortfolioValueChart({
     selectedDataPoint !== null
       ? getDataPointInfo(chartData, selectedDataPoint)
       : null;
+  const isChartLoading = loading && chartData.length === 0;
 
   const handleChartClick = useCallback(
     (state: { activeTooltipIndex?: number }) => {
@@ -114,7 +118,20 @@ export default function PortfolioValueChart({
         isZh={resolvedIsZh}
       />
 
-      {historyQuery.isLoading || chartData.length === 0 ? null : (
+      {isChartLoading ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {resolvedIsZh ? "正在加载走势图..." : "Loading chart..."}
+            </span>
+            <span>{resolvedIsZh ? "请稍候" : "Please wait"}</span>
+          </div>
+          <div className="rounded-xl bg-muted/20 p-4">
+            <Skeleton className="mb-4 h-4 w-24" />
+            <Skeleton className="h-[200px] w-full rounded-lg" />
+          </div>
+        </div>
+      ) : chartData.length === 0 ? null : (
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart
             data={chartData}
@@ -124,16 +141,8 @@ export default function PortfolioValueChart({
           >
             <defs>
               <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor={trendColor}
-                  stopOpacity={0.35}
-                />
-                <stop
-                  offset="95%"
-                  stopColor={trendColor}
-                  stopOpacity={0.03}
-                />
+                <stop offset="5%" stopColor={trendColor} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={trendColor} stopOpacity={0.03} />
               </linearGradient>
             </defs>
             <CartesianGrid
@@ -183,7 +192,9 @@ export default function PortfolioValueChart({
               dx={-5}
             />
             <Tooltip
-              content={<ChartTooltip formatUSD={formatUSD} isZh={resolvedIsZh} />}
+              content={
+                <ChartTooltip formatUSD={formatUSD} isZh={resolvedIsZh} />
+              }
               cursor={{
                 stroke: trendColor,
                 strokeWidth: 1,

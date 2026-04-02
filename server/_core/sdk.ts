@@ -5,7 +5,6 @@ import { SignJWT, jwtVerify } from "jose";
 import { ForbiddenError } from "@shared/_core/errors";
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-
 import * as db from "../db";
 import { ENV } from "./env";
 
@@ -159,8 +158,29 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
+    const secret =
+      ENV.cookieSecret ||
+      (!ENV.isProduction ? "asset-tracker-local-dev-secret" : "");
+
+    if (!ENV.cookieSecret && !ENV.isProduction) {
+      console.warn(
+        "[Auth] JWT_SECRET is missing, using local development fallback secret."
+      );
+    }
+
     return new TextEncoder().encode(secret);
+  }
+
+  private getSessionAppId() {
+    if (ENV.appId) {
+      return ENV.appId;
+    }
+
+    if (!ENV.isProduction) {
+      return "asset-tracker-local-dev";
+    }
+
+    return "";
   }
 
   /**
@@ -175,7 +195,7 @@ class SDKServer {
     return this.signSession(
       {
         openId,
-        appId: ENV.appId,
+        appId: this.getSessionAppId(),
         name: options.name || "",
       },
       options

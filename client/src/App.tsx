@@ -3,7 +3,6 @@ import { Route, Switch } from "wouter";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_ROUTES, type RouteComponentKey } from "@/lib/navigation";
-import AssetDetail from "@/pages/AssetDetail";
 import Dashboard from "@/pages/Dashboard";
 import ImportPreviewPage from "@/pages/ImportPreviewPage";
 import NoodlePage from "@/pages/NoodlePage";
@@ -24,7 +23,6 @@ const ROUTE_COMPONENTS: Record<RouteComponentKey, () => React.JSX.Element> = {
   aiStrategy: StrategyPage,
   walletPlanning: WalletPlanningPage,
   page2: StrategyPage,
-  assetDetail: AssetDetail,
   notFound: NotFound,
 };
 

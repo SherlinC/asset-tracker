@@ -1,5 +1,6 @@
 import { TrendingUp, PieChart, BarChart3, RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -11,9 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { clearDevLogoutCookie, getLoginUrl, isOAuthConfigured } from "@/const";
+import {
+  clearGuestMode,
+  enableGuestMode,
+  getLoginUrl,
+  isOAuthConfigured,
+} from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
 import { ROUTE_PATHS } from "@/lib/navigation";
+import { trpc } from "@/lib/trpc";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
@@ -27,9 +34,17 @@ export default function Home() {
       ? {
           loading: "加载中...",
           redirecting: "正在跳转到仪表盘…",
-          signIn: "登录",
-          devEnter: "开发模式：进入仪表盘",
-          getStarted: "免费开始",
+          signIn: "登录查看旧数据",
+          signInHint: "进入你原来的账号数据与历史折线图",
+          signInUnavailable: "当前环境未配置正式登录",
+          noLocalAccounts: "当前没有可用于本地登录的旧账号记录。",
+          recentAccounts: "本地旧账号",
+          signingIn: "登录中...",
+          signInFailed: "登录失败：",
+          guestSignIn: "游客进入",
+          guestHint: "本地体验，不覆盖你原来的账号数据",
+          getStarted: "先用游客模式",
+          getStartedAuth: "登录我的资产库",
           learnMore: "了解更多",
           heroPrefix: "实时追踪你的",
           heroHighlight: "资产组合",
@@ -49,13 +64,31 @@ export default function Home() {
           moreSoon: "更多即将支持...",
           footer: "版权所有。",
           switchLanguage: "EN",
+          entryTitle: "选择进入方式",
+          entryDescription: "一个入口看旧数据，一个入口做游客体验。",
+          accountEntryTitle: "正式登录",
+          accountEntryDesc: "查看你原来账号里的持仓、历史曲线和老数据。",
+          guestEntryTitle: "游客模式",
+          guestEntryDesc:
+            "本机本地体验，适合试用和导入测试，不会覆盖旧账号数据。",
         }
       : {
           loading: "Loading...",
           redirecting: "Redirecting to dashboard…",
-          signIn: "Sign In",
-          devEnter: "Dev mode: Enter dashboard",
-          getStarted: "Get Started Free",
+          signIn: "Sign in to old data",
+          signInHint: "Open your original account portfolio and history",
+          signInUnavailable:
+            "Normal sign-in is not configured in this environment",
+          noLocalAccounts:
+            "No previous local accounts are available for sign-in.",
+          recentAccounts: "Recent local accounts",
+          signingIn: "Signing in...",
+          signInFailed: "Sign-in failed: ",
+          guestSignIn: "Continue as Guest",
+          guestHint:
+            "Local-only mode that does not overwrite your account data",
+          getStarted: "Start with Guest Mode",
+          getStartedAuth: "Open My Portfolio",
           learnMore: "Learn More",
           heroPrefix: "Track your",
           heroHighlight: "asset portfolio",
@@ -78,10 +111,32 @@ export default function Home() {
           moreSoon: "More coming soon...",
           footer: "All rights reserved.",
           switchLanguage: "中",
+          entryTitle: "Choose your entry",
+          entryDescription:
+            "One path opens your existing data, the other starts a safe guest session.",
+          accountEntryTitle: "Normal Sign-In",
+          accountEntryDesc:
+            "Open your original holdings, history chart, and saved account data.",
+          guestEntryTitle: "Guest Mode",
+          guestEntryDesc:
+            "Local-only sandbox for trying imports and features without touching account data.",
         };
 
+  const oauthConfigured = isOAuthConfigured();
+  const utils = trpc.useUtils();
+  const localAccountsQuery = trpc.auth.localAccounts.useQuery(undefined, {
+    enabled: !oauthConfigured,
+  });
+  const localLogin = trpc.auth.localLogin.useMutation();
+
   useEffect(() => {
-    if (location !== "/" || !isAuthenticated || !user || hasRedirected.current)
+    if (
+      location !== "/" ||
+      !isAuthenticated ||
+      !user ||
+      user.loginMethod === "guest-access" ||
+      hasRedirected.current
+    )
       return;
     hasRedirected.current = true;
     navigate(ROUTE_PATHS.dashboard);
@@ -98,13 +153,54 @@ export default function Home() {
     );
   }
 
-  if (isAuthenticated && user) {
+  if (isAuthenticated && user && user.loginMethod !== "guest-access") {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">{text.redirecting}</p>
       </div>
     );
   }
+
+  const enterGuestDashboard = () => {
+    enableGuestMode();
+    navigate(ROUTE_PATHS.dashboard);
+  };
+
+  const enterLocalAccount = async (openId: string) => {
+    try {
+      clearGuestMode();
+      await localLogin.mutateAsync({ openId });
+      await utils.auth.me.invalidate();
+      navigate(ROUTE_PATHS.dashboard);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`${text.signInFailed}${message}`);
+    }
+  };
+
+  const enterAccountDashboard = () => {
+    if (!oauthConfigured) {
+      const localAccounts = localAccountsQuery.data ?? [];
+
+      if (localAccounts.length === 1) {
+        void enterLocalAccount(localAccounts[0].openId);
+        return;
+      }
+
+      document.getElementById("account-entry-card")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
+
+    clearGuestMode();
+    const loginUrl = getLoginUrl();
+
+    if (loginUrl && loginUrl !== window.location.href) {
+      window.location.href = loginUrl;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
@@ -123,20 +219,14 @@ export default function Home() {
             <Button variant="outline" size="sm" onClick={toggleLanguage}>
               {text.switchLanguage}
             </Button>
-            {isOAuthConfigured() ? (
-              <a href={getLoginUrl()}>
-                <Button>{text.signIn}</Button>
-              </a>
-            ) : (
-              <Button
-                onClick={() => {
-                  clearDevLogoutCookie();
-                  navigate(ROUTE_PATHS.dashboard);
-                }}
-              >
-                {text.devEnter}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={enterAccountDashboard}
+              disabled={localLogin.isPending}
+            >
+              {localLogin.isPending ? text.signingIn : text.signIn}
+            </Button>
+            <Button onClick={enterGuestDashboard}>{text.guestSignIn}</Button>
           </div>
         </div>
       </nav>
@@ -154,28 +244,37 @@ export default function Home() {
             <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
               {text.heroDesc}
             </p>
-            <div className="flex gap-4">
-              {isOAuthConfigured() ? (
-                <a href={getLoginUrl()}>
-                  <Button size="lg" className="text-base">
-                    {text.getStarted}
-                  </Button>
-                </a>
-              ) : (
-                <Button
-                  size="lg"
-                  className="text-base"
-                  onClick={() => {
-                    clearDevLogoutCookie();
-                    navigate(ROUTE_PATHS.dashboard);
-                  }}
-                >
-                  {text.devEnter}
-                </Button>
-              )}
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <Button
+                size="lg"
+                className="text-base"
+                variant="outline"
+                onClick={enterAccountDashboard}
+                disabled={localLogin.isPending}
+              >
+                {localLogin.isPending ? text.signingIn : text.getStartedAuth}
+              </Button>
+              <Button
+                size="lg"
+                className="text-base"
+                onClick={enterGuestDashboard}
+              >
+                {text.getStarted}
+              </Button>
               <Button size="lg" variant="outline" className="text-base">
                 {text.learnMore}
               </Button>
+            </div>
+            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+              <p>{text.signInHint}</p>
+              <p>{text.guestHint}</p>
+              {!oauthConfigured ? (
+                <p>
+                  {(localAccountsQuery.data?.length ?? 0) > 0
+                    ? text.signInUnavailable
+                    : text.noLocalAccounts}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -226,6 +325,78 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="mb-8 text-center">
+          <h2 className="text-3xl font-bold text-foreground">
+            {text.entryTitle}
+          </h2>
+          <p className="mt-3 text-muted-foreground">{text.entryDescription}</p>
+        </div>
+
+        <div className="mb-20 grid gap-6 md:grid-cols-2">
+          <Card className="border-slate-200 dark:border-slate-700">
+            <div id="account-entry-card" />
+            <CardHeader>
+              <CardTitle>{text.accountEntryTitle}</CardTitle>
+              <CardDescription>{text.accountEntryDesc}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={enterAccountDashboard}
+                disabled={localLogin.isPending}
+              >
+                {localLogin.isPending ? text.signingIn : text.signIn}
+              </Button>
+              {!oauthConfigured &&
+              (localAccountsQuery.data?.length ?? 0) > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    {text.recentAccounts}
+                  </p>
+                  {(localAccountsQuery.data ?? []).map(account => (
+                    <Button
+                      key={account.openId}
+                      className="w-full justify-between"
+                      variant="ghost"
+                      onClick={() => {
+                        void enterLocalAccount(account.openId);
+                      }}
+                      disabled={localLogin.isPending}
+                    >
+                      <span>
+                        {account.name || account.email || account.openId}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {account.email || account.loginMethod || "local"}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              {!oauthConfigured ? (
+                <p className="text-sm text-muted-foreground">
+                  {(localAccountsQuery.data?.length ?? 0) > 0
+                    ? text.signInUnavailable
+                    : text.noLocalAccounts}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardHeader>
+              <CardTitle>{text.guestEntryTitle}</CardTitle>
+              <CardDescription>{text.guestEntryDesc}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={enterGuestDashboard}>
+                {text.guestSignIn}
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Features Section */}

@@ -87,9 +87,20 @@ export function buildChartData(
       .filter(item => !isAfter(rangeStart, item.timestamp))
       .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
+    const normalizedHistory =
+      sortedHistory.length === 1
+        ? [
+            {
+              timestamp: subHours(sortedHistory[0].timestamp, 1),
+              totalValue: 0,
+            },
+            sortedHistory[0],
+          ]
+        : sortedHistory;
+
     const chartData =
-      sortedHistory.length > 0
-        ? sortedHistory.map(item => ({
+      normalizedHistory.length > 0
+        ? normalizedHistory.map(item => ({
             timestamp: item.timestamp,
             totalValue: item.totalValue,
             formattedDate: formatChartAxisDate(item.timestamp, timeRange),

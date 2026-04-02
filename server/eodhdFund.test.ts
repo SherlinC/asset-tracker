@@ -211,7 +211,7 @@ describe("searchInternationalFunds", () => {
     ]);
   });
 
-  it("falls back to local known funds when providers are unavailable", async () => {
+  it("returns no unpriceable known funds when public providers are unavailable and EODHD is disabled", async () => {
     ENV.eodhdApiKey = "";
 
     vi.stubGlobal(
@@ -233,15 +233,6 @@ describe("searchInternationalFunds", () => {
 
     const result = await searchInternationalFunds("LU0633140727", 10);
 
-    expect(result).toEqual([
-      {
-        symbol: "LU0633140727.EUFUND",
-        isin: "LU0633140727",
-        name: "AB - Emerging Markets Multi-Asset Portfolio AD USD Inc",
-        market: "EUFUND",
-        currency: "USD",
-        externalSymbol: "LU0633140727",
-      },
-    ]);
+    expect(result).toEqual([]);
   });
 });

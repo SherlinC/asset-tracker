@@ -19,7 +19,12 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
+    mime_type?:
+      | "audio/mpeg"
+      | "audio/wav"
+      | "application/pdf"
+      | "audio/mp4"
+      | "video/mp4";
   };
 };
 
@@ -216,7 +221,9 @@ const resolveApiUrl = () =>
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+    throw new Error(
+      "BUILT_IN_FORGE_API_KEY is not configured (required for live AI strategy generation)"
+    );
   }
 };
 
@@ -296,10 +303,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
+  payload.max_tokens = 32768;
   payload.thinking = {
-    "budget_tokens": 128
-  }
+    budget_tokens: 128,
+  };
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,

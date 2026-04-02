@@ -1,3 +1,5 @@
+import type { PortfolioData } from "@/components/portfolio-summary/types";
+
 export type Holding = {
   holding: {
     id: number;
@@ -5,6 +7,7 @@ export type Holding = {
     assetId: number;
     quantity: string;
     costBasis: string | null;
+    annualInterestRate: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -22,7 +25,7 @@ export type Holding = {
 
 export type HoldingsListProps = {
   holdings: Holding[];
-  onRefresh: () => void;
+  portfolioData: PortfolioData | undefined;
   scrollToCategory?: string | null;
   onScrollToCategoryHandled?: () => void;
 };
@@ -37,6 +40,7 @@ export type AggregatedHolding = {
   profitLossUSD: number | null;
   profitLossPercent: number | null;
   change24h: number;
+  issueCode?: "missing_eodhd_api_key";
 };
 
 export type HoldingCategoryKey =
@@ -53,8 +57,10 @@ export type EditHoldingState = {
   id: number;
   quantity: string;
   costBasis: string;
+  annualInterestRate: string;
   assetName: string;
   symbol: string;
+  assetType: string;
 };
 
 export type CurrencyDisplay = "USD" | "CNY";
@@ -63,4 +69,5 @@ export type PortfolioAssetSummary = {
   id: number;
   priceUSD: number;
   change24h: number;
+  issueCode?: "missing_eodhd_api_key";
 };

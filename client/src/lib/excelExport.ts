@@ -5,6 +5,7 @@ import {
   getTemplateSheetName,
   type AssetTemplateSheetKey,
 } from "./excelTemplate";
+import { loadExcelJs } from "./exceljs";
 
 type ExportSheet = {
   key: AssetTemplateSheetKey | "other";
@@ -101,7 +102,7 @@ export async function downloadCurrentHoldingsWorkbook(
   language: Language,
   holdings: Holding[]
 ) {
-  const ExcelJS = await import("exceljs");
+  const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
   const text = EXPORT_TEXT[language];
 

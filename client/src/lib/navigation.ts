@@ -19,7 +19,6 @@ export const ROUTE_PATHS = {
   aiStrategy: "/ai-strategy",
   walletPlanning: "/wallet-planning",
   page2: "/page2",
-  assetDetail: "/asset/:id",
   notFound: "/404",
 } as const;
 
@@ -31,7 +30,6 @@ export type RouteComponentKey =
   | "aiStrategy"
   | "walletPlanning"
   | "page2"
-  | "assetDetail"
   | "notFound";
 
 export type AppRoute = {
@@ -53,7 +51,6 @@ export const APP_ROUTES: AppRoute[] = [
   { path: ROUTE_PATHS.aiStrategy, component: "aiStrategy" },
   { path: ROUTE_PATHS.walletPlanning, component: "walletPlanning" },
   { path: ROUTE_PATHS.page2, component: "page2" },
-  { path: ROUTE_PATHS.assetDetail, component: "assetDetail" },
   { path: ROUTE_PATHS.notFound, component: "notFound" },
 ];
 

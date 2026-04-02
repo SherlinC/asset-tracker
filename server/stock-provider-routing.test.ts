@@ -31,9 +31,45 @@ describe("stock provider routing", () => {
     return import("./priceService");
   }
 
-  it("routes A-share, BJ, and HK symbols to Yahoo while keeping US stock-like tickers on Finnhub", async () => {
+  it("routes A-share/BJ symbols to EastMoney, HK symbols to Yahoo, and US stock-like tickers to Finnhub", async () => {
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = String(input);
+
+      if (
+        url ===
+        "https://push2.eastmoney.com/api/qt/stock/get?secid=1.600519&fields=f43%2Cf57%2Cf58%2Cf169%2Cf170"
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              f43: 148800,
+              f57: "600519",
+              f58: "贵州茅台",
+              f169: 1800,
+              f170: 122,
+            },
+          }),
+        };
+      }
+
+      if (
+        url ===
+        "https://push2.eastmoney.com/api/qt/stock/get?secid=0.830799&fields=f43%2Cf57%2Cf58%2Cf169%2Cf170"
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              f43: 3250,
+              f57: "830799",
+              f58: "艾融软件",
+              f169: 70,
+              f170: 220,
+            },
+          }),
+        };
+      }
 
       if (
         url === "https://api.finnhub.io/api/v1/quote?symbol=AAPL&token=test-key"
@@ -50,50 +86,6 @@ describe("stock provider routing", () => {
         return {
           ok: true,
           json: async () => ({ c: 520, d: 3, dp: 0.58 }),
-        };
-      }
-
-      if (
-        url ===
-        "https://query1.finance.yahoo.com/v8/finance/chart/600519.SS?interval=1d&range=5d"
-      ) {
-        return {
-          ok: true,
-          json: async () => ({
-            chart: {
-              result: [
-                {
-                  meta: {
-                    regularMarketPrice: 1488,
-                    chartPreviousClose: 1470,
-                    currency: "CNY",
-                  },
-                },
-              ],
-            },
-          }),
-        };
-      }
-
-      if (
-        url ===
-        "https://query1.finance.yahoo.com/v8/finance/chart/830799.BJ?interval=1d&range=5d"
-      ) {
-        return {
-          ok: true,
-          json: async () => ({
-            chart: {
-              result: [
-                {
-                  meta: {
-                    regularMarketPrice: 32.5,
-                    chartPreviousClose: 31.8,
-                    currency: "CNY",
-                  },
-                },
-              ],
-            },
-          }),
         };
       }
 
@@ -135,16 +127,25 @@ describe("stock provider routing", () => {
 
     expect(quotes.AAPL?.price).toBe(210);
     expect(quotes.VOO?.price).toBe(520);
+    expect(quotes["600519.SS"]?.price).toBe(1488);
     expect(quotes["600519.SS"]?.currency).toBe("CNY");
+    expect(quotes["830799.BJ"]?.price).toBe(32.5);
     expect(quotes["830799.BJ"]?.currency).toBe("CNY");
     expect(quotes["0700.HK"]?.currency).toBe("HKD");
 
     const urls = fetchMock.mock.calls.map(([input]) => String(input));
     const finnhubCalls = urls.filter(url => url.includes("api.finnhub.io"));
+    const eastMoneyCalls = urls.filter(url =>
+      url.includes("push2.eastmoney.com")
+    );
 
     expect(finnhubCalls).toEqual([
       "https://api.finnhub.io/api/v1/quote?symbol=AAPL&token=test-key",
       "https://api.finnhub.io/api/v1/quote?symbol=VOO&token=test-key",
+    ]);
+    expect(eastMoneyCalls).toEqual([
+      "https://push2.eastmoney.com/api/qt/stock/get?secid=1.600519&fields=f43%2Cf57%2Cf58%2Cf169%2Cf170",
+      "https://push2.eastmoney.com/api/qt/stock/get?secid=0.830799&fields=f43%2Cf57%2Cf58%2Cf169%2Cf170",
     ]);
     expect(
       finnhubCalls.some(
@@ -199,6 +200,47 @@ describe("stock provider routing", () => {
     expect(result.change24h).toBeCloseTo(((400 - 380) / 380) * 100, 6);
   });
 
+  it("falls back to EastMoney kline data when quote endpoint fails for A-shares", async () => {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+
+      if (url.includes("push2.eastmoney.com/api/qt/stock/get")) {
+        throw new Error("socket hang up");
+      }
+
+      if (
+        url ===
+        "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600519&fields1=f1%2Cf2%2Cf3&fields2=f51%2Cf52%2Cf53&klt=101&fqt=1&end=20500101&lmt=2"
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              klines: [
+                "2026-03-20,1452.96,1445.00",
+                "2026-03-23,1433.33,1408.07",
+              ],
+            },
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { fetchStockPrices } = await importPriceService();
+    const quotes = await fetchStockPrices(["600519.SS"]);
+
+    expect(quotes["600519.SS"]?.price).toBeCloseTo(1408.07, 2);
+    expect(quotes["600519.SS"]?.changePercent).toBeCloseTo(
+      ((1408.07 - 1445.0) / 1445.0) * 100,
+      6
+    );
+    expect(quotes["600519.SS"]?.currency).toBe("CNY");
+  });
+
   it("keeps dotted US tickers on Finnhub-first routing", async () => {
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = String(input);
@@ -231,5 +273,42 @@ describe("stock provider routing", () => {
     expect(urls).toEqual([
       "https://api.finnhub.io/api/v1/quote?symbol=BRK.B&token=test-key",
     ]);
+  });
+
+  it("falls back to Stooq for plain US tickers when Finnhub key is unavailable and Yahoo is blocked", async () => {
+    delete process.env.FINNHUB_API_KEY;
+    vi.resetModules();
+
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+
+      if (url === "https://stooq.com/q/l/?s=tsla.us&i=d") {
+        return {
+          ok: true,
+          text: async () =>
+            "TSLA.US,20260319,164150,387.27,387.27,379.7232,381.715,21574966,",
+        };
+      }
+
+      if (url.includes("finance.yahoo.com")) {
+        return {
+          ok: false,
+          text: async () => "Too Many Requests",
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { fetchStockPrices } = await import("./priceService");
+    const quotes = await fetchStockPrices(["TSLA"]);
+
+    expect(quotes.TSLA?.price).toBeCloseTo(381.715, 6);
+    expect(quotes.TSLA?.currency).toBe("USD");
+
+    const urls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(urls).toContain("https://stooq.com/q/l/?s=tsla.us&i=d");
   });
 });

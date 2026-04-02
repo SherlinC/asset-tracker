@@ -1,12 +1,18 @@
 import { z } from "zod";
 
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
+import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import {
+  nonGuestProcedure,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./_core/trpc";
 import { fetchAssetPriceWithFallback } from "./assetPricing";
 import * as db from "./db";
 import { searchEastMoneyFunds } from "./eastMoneyFund";
@@ -14,6 +20,25 @@ import { searchEastMoneyStocks } from "./eastMoneyStock";
 import { searchInternationalFunds } from "./eodhdFund";
 import { searchNasdaqEtfs } from "./nasdaqEtf";
 import * as priceService from "./priceService";
+import { generateLiveStrategy } from "./strategyAdvisor";
+
+import type { PriceIssueCode } from "./internationalFundUtils";
+
+const strategyPortfolioAssetSchema = z.object({
+  symbol: z.string(),
+  name: z.string(),
+  type: z.string(),
+  quantity: z.number(),
+  priceUSD: z.number(),
+  valueUSD: z.number(),
+});
+
+const strategyPortfolioSnapshotSchema = z.object({
+  totalValueUSD: z.number(),
+  totalValueCNY: z.number(),
+  exchangeRate: z.number(),
+  assets: z.array(strategyPortfolioAssetSchema),
+});
 
 type PortfolioAssetSummary = {
   id: number;
@@ -24,12 +49,41 @@ type PortfolioAssetSummary = {
   priceUSD: number;
   valueUSD: number;
   change24h: number;
+  issueCode?: PriceIssueCode;
   holding: Awaited<ReturnType<typeof db.getUserHoldings>>[number]["holding"];
 };
 
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+
+export function getHoldingInterestMultiplier(
+  assetType: string,
+  annualInterestRate: string | null,
+  createdAt: Date,
+  now: number = Date.now()
+) {
+  if (assetType !== "currency") {
+    return 1;
+  }
+
+  const parsedAnnualInterestRate = Number.parseFloat(annualInterestRate ?? "");
+
+  if (
+    !Number.isFinite(parsedAnnualInterestRate) ||
+    parsedAnnualInterestRate <= 0
+  ) {
+    return 1;
+  }
+
+  const elapsedMs = Math.max(now - createdAt.getTime(), 0);
+  return 1 + (parsedAnnualInterestRate / 100) * (elapsedMs / MS_PER_YEAR);
+}
+
+type HoldingWithAsset = Awaited<ReturnType<typeof db.getUserHoldings>>;
+
 async function priceUserHoldings(
-  holdings: Awaited<ReturnType<typeof db.getUserHoldings>>,
-  exchangeRates?: Record<string, number>
+  holdings: HoldingWithAsset,
+  exchangeRates?: Record<string, number>,
+  persistPriceCache: boolean = true
 ): Promise<PortfolioAssetSummary[]> {
   return Promise.all(
     holdings.map(async h => {
@@ -39,12 +93,17 @@ async function priceUserHoldings(
 
       try {
         const priceData = await fetchAssetPriceWithFallback(
-          h.asset.id,
+          persistPriceCache ? h.asset.id : null,
           symbol,
           type,
           exchangeRates
         );
-        const priceUSD = priceData.priceUSD;
+        const interestMultiplier = getHoldingInterestMultiplier(
+          h.asset.type,
+          h.holding.annualInterestRate,
+          h.holding.createdAt
+        );
+        const priceUSD = priceData.priceUSD * interestMultiplier;
         const valueUSD = quantity * priceUSD;
 
         return {
@@ -56,6 +115,7 @@ async function priceUserHoldings(
           priceUSD,
           valueUSD,
           change24h: priceData.change24h,
+          issueCode: priceData.issueCode,
           holding: h.holding,
         } satisfies PortfolioAssetSummary;
       } catch (error) {
@@ -70,11 +130,33 @@ async function priceUserHoldings(
           priceUSD: 0,
           valueUSD: 0,
           change24h: 0,
+          issueCode: undefined,
           holding: h.holding,
         } satisfies PortfolioAssetSummary;
       }
     })
   );
+}
+
+async function buildPortfolioSummary(
+  holdings: HoldingWithAsset,
+  persistPriceCache: boolean = true
+) {
+  const exchangeRates = await priceService.fetchExchangeRates();
+  const assets = await priceUserHoldings(
+    holdings,
+    exchangeRates,
+    persistPriceCache
+  );
+  const totalValueUSD = assets.reduce((sum, asset) => sum + asset.valueUSD, 0);
+  const usdToCny = exchangeRates.USD || DEFAULT_USD_CNY_RATE;
+
+  return {
+    assets,
+    totalValueUSD,
+    totalValueCNY: totalValueUSD * usdToCny,
+    exchangeRate: usdToCny,
+  };
 }
 
 // Helper function to record portfolio value (uses same real-time API as portfolio.summary so chart matches summary)
@@ -94,6 +176,15 @@ async function recordPortfolioValue(userId: number) {
   );
 
   await db.recordPortfolioValue(userId, totalValueUSD.toString());
+}
+
+function recordPortfolioValueInBackground(userId: number) {
+  void recordPortfolioValue(userId).catch(error => {
+    console.error(
+      `[Portfolio History] Failed to record portfolio value for user ${userId}:`,
+      error
+    );
+  });
 }
 
 async function refreshUserMarketData(userId: number) {
@@ -187,24 +278,85 @@ export const appRouter = router({
         return searchEastMoneyStocks(input.q, input.limit);
       }),
   }),
+  strategy: router({
+    generate: protectedProcedure
+      .input(
+        z.object({
+          language: z.enum(["zh", "en"]),
+          portfolio: strategyPortfolioSnapshotSchema,
+        })
+      )
+      .mutation(async ({ input }) => {
+        return generateLiveStrategy(input.language, input.portfolio);
+      }),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    localAccounts: publicProcedure.query(async () => {
+      if (ENV.isProduction || ENV.oAuthServerUrl.length > 0) {
+        return [];
+      }
+
+      const users = await db.listRecentUsers(20);
+
+      return users
+        .filter(user => user.openId !== "guest-local")
+        .map(user => ({
+          openId: user.openId,
+          name: user.name,
+          email: user.email,
+          loginMethod: user.loginMethod,
+          lastSignedIn: user.lastSignedIn,
+        }));
+    }),
+    localLogin: publicProcedure
+      .input(
+        z.object({
+          openId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ENV.isProduction || ENV.oAuthServerUrl.length > 0) {
+          throw new Error("Local login is not available in this environment.");
+        }
+
+        const user = await db.getUserByOpenId(input.openId);
+
+        if (!user) {
+          throw new Error("Account not found.");
+        }
+
+        await db.upsertUser({
+          openId: user.openId,
+          lastSignedIn: new Date(),
+        });
+
+        const sessionToken = await sdk.createSessionToken(user.openId, {
+          name: user.name || "",
+          expiresInMs: ONE_YEAR_MS,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+
+        ctx.res.cookie(COOKIE_NAME, sessionToken, {
+          ...cookieOptions,
+          maxAge: ONE_YEAR_MS,
+        });
+        ctx.res.clearCookie("asset_tracker_guest_mode", {
+          path: "/",
+          maxAge: -1,
+        });
+
+        return {
+          success: true,
+        } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      const isDevBypass =
-        !ENV.isProduction &&
-        !ENV.oAuthServerUrl &&
-        ENV.devUserEmail.length > 0 &&
-        ENV.databaseUrl.length > 0;
-      if (isDevBypass) {
-        ctx.res.cookie("asset_tracker_dev_logout", "1", {
-          path: "/",
-          maxAge: 3600,
-          httpOnly: false,
-          sameSite: "lax",
-        });
-      }
+      ctx.res.clearCookie("asset_tracker_guest_mode", {
+        path: "/",
+        maxAge: -1,
+      });
       return {
         success: true,
       } as const;
@@ -219,7 +371,7 @@ export const appRouter = router({
     }),
 
     // Create a new asset
-    create: protectedProcedure
+    create: nonGuestProcedure
       .input(
         z.object({
           symbol: z.string(),
@@ -247,12 +399,13 @@ export const appRouter = router({
     }),
 
     // Add a new holding
-    add: protectedProcedure
+    add: nonGuestProcedure
       .input(
         z.object({
           assetId: z.number(),
           quantity: z.string(),
           costBasis: z.string().optional(),
+          annualInterestRate: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -260,20 +413,22 @@ export const appRouter = router({
           ctx.user.id,
           input.assetId,
           input.quantity,
-          input.costBasis
+          input.costBasis,
+          input.annualInterestRate
         );
-        // Auto-record portfolio value after adding holding
-        await recordPortfolioValue(ctx.user.id);
+        // Record the snapshot in the background so writes return quickly.
+        recordPortfolioValueInBackground(ctx.user.id);
         return result;
       }),
 
     // Update a holding
-    update: protectedProcedure
+    update: nonGuestProcedure
       .input(
         z.object({
           holdingId: z.number(),
           quantity: z.string(),
           costBasis: z.string().optional(),
+          annualInterestRate: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -285,15 +440,16 @@ export const appRouter = router({
         const result = await db.updateHolding(
           input.holdingId,
           input.quantity,
-          input.costBasis
+          input.costBasis,
+          input.annualInterestRate
         );
-        // Auto-record portfolio value after updating holding
-        await recordPortfolioValue(ctx.user.id);
+        // Record the snapshot in the background so writes return quickly.
+        recordPortfolioValueInBackground(ctx.user.id);
         return result;
       }),
 
     // Delete a holding
-    delete: protectedProcedure
+    delete: nonGuestProcedure
       .input(
         z.object({
           holdingId: z.number(),
@@ -306,12 +462,11 @@ export const appRouter = router({
           throw new Error("Unauthorized");
         }
         await db.deleteHolding(input.holdingId);
-        // Auto-record portfolio value after deleting holding
-        await recordPortfolioValue(ctx.user.id);
+        recordPortfolioValueInBackground(ctx.user.id);
         return { success: true };
       }),
 
-    replaceAll: protectedProcedure
+    replaceAll: nonGuestProcedure
       .input(
         z.object({
           holdings: z.array(
@@ -319,6 +474,7 @@ export const appRouter = router({
               assetId: z.number(),
               quantity: z.string(),
               costBasis: z.string().optional(),
+              annualInterestRate: z.string().optional(),
             })
           ),
         })
@@ -334,7 +490,7 @@ export const appRouter = router({
         }
 
         await db.replaceUserHoldings(ctx.user.id, input.holdings);
-        await recordPortfolioValue(ctx.user.id);
+        recordPortfolioValueInBackground(ctx.user.id);
 
         return { success: true };
       }),
@@ -373,6 +529,17 @@ export const appRouter = router({
 
     // Refresh all prices for current user's holdings
     refresh: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.loginMethod === "guest-access") {
+        return {
+          success: true as const,
+          assetCount: 0,
+          liveCount: 0,
+          cacheCount: 0,
+          emptyCount: 0,
+          exchangeRate: DEFAULT_USD_CNY_RATE,
+        };
+      }
+
       return refreshUserMarketData(ctx.user.id);
     }),
 
@@ -387,28 +554,80 @@ export const appRouter = router({
     // Get portfolio summary
     summary: protectedProcedure.query(async ({ ctx }) => {
       const holdings = await db.getUserHoldings(ctx.user.id);
-      const exchangeRates = await priceService.fetchExchangeRates();
-      const assets = await priceUserHoldings(holdings, exchangeRates);
-      const totalValueUSD = assets.reduce(
-        (sum, asset) => sum + asset.valueUSD,
-        0
-      );
-
-      const usdToCny = exchangeRates.USD || DEFAULT_USD_CNY_RATE;
-      const totalValueCNY = totalValueUSD * usdToCny;
-
-      return {
-        assets,
-        totalValueUSD,
-        totalValueCNY,
-        exchangeRate: usdToCny,
-      };
+      return buildPortfolioSummary(holdings);
     }),
+
+    preview: protectedProcedure
+      .input(
+        z.object({
+          assets: z.array(
+            z.object({
+              id: z.number(),
+              symbol: z.string(),
+              type: z.enum(["currency", "crypto", "stock", "fund"]),
+              name: z.string(),
+              baseCurrency: z.string(),
+            })
+          ),
+          holdings: z.array(
+            z.object({
+              id: z.number(),
+              assetId: z.number(),
+              quantity: z.string(),
+              costBasis: z.string().nullable().optional(),
+              annualInterestRate: z.string().nullable().optional(),
+              createdAt: z.date(),
+              updatedAt: z.date(),
+            })
+          ),
+        })
+      )
+      .query(async ({ input }) => {
+        const assetsById = new Map(
+          input.assets.map(asset => [asset.id, asset])
+        );
+        const joinedHoldings: HoldingWithAsset = input.holdings.flatMap(
+          holding => {
+            const asset = assetsById.get(holding.assetId);
+
+            if (!asset) {
+              return [];
+            }
+
+            return [
+              {
+                holding: {
+                  id: holding.id,
+                  userId: 0,
+                  assetId: holding.assetId,
+                  quantity: holding.quantity,
+                  costBasis: holding.costBasis ?? null,
+                  annualInterestRate: holding.annualInterestRate ?? null,
+                  createdAt: holding.createdAt,
+                  updatedAt: holding.updatedAt,
+                },
+                asset: {
+                  ...asset,
+                  userId: 0,
+                  createdAt: holding.createdAt,
+                  updatedAt: holding.updatedAt,
+                },
+              },
+            ];
+          }
+        );
+
+        return buildPortfolioSummary(joinedHoldings, false);
+      }),
   }),
 
   portfolioHistory: router({
     // Record current portfolio value
     record: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.loginMethod === "guest-access") {
+        return { success: true };
+      }
+
       await recordPortfolioValue(ctx.user.id);
       return { success: true };
     }),
@@ -421,6 +640,10 @@ export const appRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
+        if (ctx.user.loginMethod === "guest-access") {
+          return [];
+        }
+
         return db.getPortfolioValueHistory(ctx.user.id, input.days);
       }),
 
@@ -433,6 +656,10 @@ export const appRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
+        if (ctx.user.loginMethod === "guest-access") {
+          return [];
+        }
+
         return db.getPortfolioValueHistoryByRange(
           ctx.user.id,
           input.startDate,

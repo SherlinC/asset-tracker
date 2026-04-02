@@ -1,4 +1,4 @@
-import { eq, and, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, inArray, gte, lte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool, type Pool, type PoolOptions } from "mysql2";
 
@@ -135,6 +135,16 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function listRecentUsers(limit: number = 20) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot list users: database not available");
+    return [];
+  }
+
+  return db.select().from(users).orderBy(desc(users.lastSignedIn)).limit(limit);
+}
+
 const DEV_OPEN_ID = "dev-local";
 
 /** 本地开发直通：获取或创建开发用户（openId=dev-local），需配置 DATABASE_URL 和 DEV_USER_EMAIL */
@@ -197,7 +207,7 @@ export async function getOrCreateAsset(
 
 export async function getUserAssets(userId: number) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return [];
 
   return db.select().from(assets).where(eq(assets.userId, userId));
 }
@@ -205,7 +215,7 @@ export async function getUserAssets(userId: number) {
 // Holdings queries
 export async function getUserHoldings(userId: number) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return [];
 
   const result = await db
     .select({
@@ -223,7 +233,8 @@ export async function addHolding(
   userId: number,
   assetId: number,
   quantity: string,
-  costBasis?: string
+  costBasis?: string,
+  annualInterestRate?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -233,6 +244,7 @@ export async function addHolding(
     assetId,
     quantity,
     costBasis,
+    annualInterestRate,
   });
 
   const created = await db
@@ -247,7 +259,8 @@ export async function addHolding(
 export async function updateHolding(
   holdingId: number,
   quantity: string,
-  costBasis?: string
+  costBasis?: string,
+  annualInterestRate?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -255,6 +268,10 @@ export async function updateHolding(
   const updateData: Record<string, unknown> = { quantity };
   if (costBasis !== undefined) {
     updateData.costBasis = costBasis === "" ? null : costBasis;
+  }
+  if (annualInterestRate !== undefined) {
+    updateData.annualInterestRate =
+      annualInterestRate === "" ? null : annualInterestRate;
   }
 
   await db.update(holdings).set(updateData).where(eq(holdings.id, holdingId));
@@ -277,6 +294,7 @@ export async function replaceUserHoldings(
     assetId: number;
     quantity: string;
     costBasis?: string;
+    annualInterestRate?: string;
   }>
 ) {
   const db = await getDb();
@@ -295,6 +313,7 @@ export async function replaceUserHoldings(
         assetId: holding.assetId,
         quantity: holding.quantity,
         costBasis: holding.costBasis ?? null,
+        annualInterestRate: holding.annualInterestRate ?? null,
       }))
     );
   });
@@ -345,7 +364,7 @@ export async function upsertPrice(
 
 export async function getPrices(assetIds: number[]) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return [];
 
   if (assetIds.length === 0) return [];
 
@@ -354,7 +373,7 @@ export async function getPrices(assetIds: number[]) {
 
 export async function getPriceByAssetId(assetId: number) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return null;
 
   const result = await db
     .select()
@@ -367,7 +386,10 @@ export async function getPriceByAssetId(assetId: number) {
 // Price history
 export async function addPriceHistory(assetId: number, price: string) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) {
+    console.warn("[Database] Cannot add price history: database not available");
+    return;
+  }
 
   await db.insert(priceHistory).values({
     assetId,
@@ -378,7 +400,12 @@ export async function addPriceHistory(assetId: number, price: string) {
 // Portfolio value history
 export async function recordPortfolioValue(userId: number, totalValue: string) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) {
+    console.warn(
+      "[Database] Cannot record portfolio value: database not available"
+    );
+    return;
+  }
 
   await db.insert(portfolioValueHistory).values({
     userId,
@@ -391,7 +418,7 @@ export async function getPortfolioValueHistory(
   days: number = 30
 ) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return [];
 
   const sinceDate = new Date();
   sinceDate.setDate(sinceDate.getDate() - days);
@@ -414,7 +441,7 @@ export async function getPortfolioValueHistoryByRange(
   endDate: Date
 ) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return [];
 
   return db
     .select()

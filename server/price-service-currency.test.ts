@@ -7,10 +7,19 @@ describe("fetchAssetPrice currency linkage", () => {
     USD: 7.2,
     HKD: 0.92,
     EUR: 7.8,
+    AUD: 4.65,
     JPY: 0.048,
     RUB: 0.079,
     CNY: 1,
   };
+
+  it("prices AUD through exchange-rate linkage", async () => {
+    const result = await fetchAssetPrice("AUD", "currency", exchangeRates);
+
+    expect(result.priceCNY).toBeCloseTo(4.65, 6);
+    expect(result.priceUSD).toBeCloseTo(4.65 / 7.2, 6);
+    expect(result.change24h).toBe(0);
+  });
 
   it("prices RUB through exchange-rate linkage", async () => {
     const result = await fetchAssetPrice("RUB", "currency", exchangeRates);

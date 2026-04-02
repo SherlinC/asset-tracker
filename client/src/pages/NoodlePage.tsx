@@ -6,13 +6,24 @@ import DashboardLayout from "@/components/DashboardLayout";
 import NoodlePanel from "@/components/NoodlePanel";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
-import { trpc } from "@/lib/trpc";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
+import { usePortfolioRefresh } from "@/hooks/usePortfolioRefresh";
 
 export default function NoodlePage() {
   const { language } = useLanguage();
   const isZh = language === "zh";
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const utils = trpc.useUtils();
+  const portfolioData = usePortfolioData({
+    includeSummary: true,
+    includeHistory: true,
+    historyDays: 2,
+    summaryRefetchInterval: 10 * 60 * 1000,
+    trackGuestHistory: true,
+  });
+  const portfolioRefresh = usePortfolioRefresh({
+    isGuestMode: portfolioData.isGuestMode,
+    refetchAll: portfolioData.refetchAll,
+  });
 
   const text = isZh
     ? {
@@ -37,43 +48,39 @@ export default function NoodlePage() {
         hint: "This is a dark focus page designed to feel the relationship between wealth and living costs.",
       };
 
-  const portfolioSummary = trpc.portfolio.summary.useQuery(undefined, {
-    refetchInterval: 10 * 60 * 1000,
-  });
-
-  const refreshPrices = trpc.prices.refresh.useMutation({
-    onSuccess: async data => {
-      if (data.emptyCount > 0 || data.cacheCount > 0) {
-        toast.warning(
-          `${text.refreshedPartial} (${data.liveCount}/${data.assetCount} live, USD/CNY ${data.exchangeRate.toFixed(4)})`
-        );
-      } else {
-        toast.success(
-          `${text.refreshed} (${data.assetCount}/${data.assetCount}, USD/CNY ${data.exchangeRate.toFixed(4)})`
-        );
-      }
-
-      await Promise.all([
-        portfolioSummary.refetch(),
-        utils.portfolioHistory.get.invalidate(),
-      ]);
-    },
-    onError: error => {
-      toast.error(`${text.refreshFailed}${error.message}`);
-    },
-  });
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshPrices.mutateAsync();
+      const result = await portfolioRefresh.refresh();
+
+      if (result == null) {
+        toast.success(text.refreshed);
+      } else {
+        if (result.emptyCount > 0 || result.cacheCount > 0) {
+          toast.warning(
+            `${text.refreshedPartial} (${result.liveCount}/${result.assetCount} live, USD/CNY ${result.exchangeRate.toFixed(4)})`
+          );
+        } else {
+          toast.success(
+            `${text.refreshed} (${result.assetCount}/${result.assetCount}, USD/CNY ${result.exchangeRate.toFixed(4)})`
+          );
+        }
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : text.refreshFailed;
+      toast.error(`${text.refreshFailed}${message}`);
     } finally {
       setIsRefreshing(false);
     }
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout
+      onPortfolioChanged={async () => {
+        await portfolioRefresh.refresh();
+      }}
+    >
       <div className="dark -m-4 min-h-[calc(100vh-2rem)] bg-[#02040a] p-4 text-white sm:p-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_24px_80px_-40px_rgba(0,0,0,0.75)] lg:flex-row lg:items-end lg:justify-between">
@@ -95,7 +102,7 @@ export default function NoodlePage() {
 
             <Button
               onClick={handleRefresh}
-              disabled={isRefreshing || refreshPrices.isPending}
+              disabled={isRefreshing || portfolioRefresh.isRefreshing}
               variant="outline"
               size="sm"
               className="border-white/15 bg-white/[0.03] text-white hover:bg-white/10 hover:text-white"
@@ -107,12 +114,16 @@ export default function NoodlePage() {
             </Button>
           </div>
 
-          {portfolioSummary.isLoading ? (
+          {portfolioData.isSummaryLoading ? (
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
               {text.loading}
             </div>
           ) : (
-            <NoodlePanel data={portfolioSummary.data} />
+            <NoodlePanel
+              data={portfolioData.summary}
+              historyData={portfolioData.history}
+              historyLoading={portfolioData.isHistoryLoading}
+            />
           )}
         </div>
       </div>

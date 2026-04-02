@@ -2,18 +2,18 @@ import { PieChart, RefreshCw } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import HoldingsList from "@/components/HoldingsList";
 import PageHeader from "@/components/PageHeader";
 import PortfolioSummary from "@/components/PortfolioSummary";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
+import { usePortfolioRefresh } from "@/hooks/usePortfolioRefresh";
 import { usePriceUpdates } from "@/hooks/usePriceUpdates";
 import { trpc } from "@/lib/trpc";
 
 export default function Dashboard() {
-  const { loading: authLoading } = useAuth();
   const { language } = useLanguage();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [scrollToCategory, setScrollToCategory] = useState<string | null>(null);
@@ -46,69 +46,81 @@ export default function Dashboard() {
           loadingHoldings: "Loading holdings...",
         };
 
-  const utils = trpc.useUtils();
-  const portfolioSummary = trpc.portfolio.summary.useQuery(undefined, {
-    refetchInterval: 10 * 60 * 1000,
+  const portfolioData = usePortfolioData({
+    includeSummary: true,
+    includeHoldings: true,
+    trackGuestHistory: true,
   });
-  const holdings = trpc.holdings.list.useQuery();
-
-  const recordPortfolio = trpc.portfolioHistory.record.useMutation({
-    onSuccess: () => {
-      void utils.portfolioHistory.get.invalidate();
-    },
-  });
-  const { mutate: recordPortfolioMutate } = recordPortfolio;
-  const { mutateAsync: recordPortfolioMutateAsync } = recordPortfolio;
-  const { refetch: refetchPortfolioSummary } = portfolioSummary;
+  const isGuestMode = portfolioData.isGuestMode;
+  const displayedHoldings = portfolioData.holdings;
+  const activePortfolioSummary = portfolioData.summaryQuery;
+  const { refetch: refetchPortfolioSummary } = activePortfolioSummary;
 
   const refreshDashboardData = async () => {
-    await Promise.all([
-      holdings.refetch(),
-      refetchPortfolioSummary(),
-      utils.portfolioHistory.get.invalidate(),
-    ]);
+    if (isGuestMode) {
+      await refetchPortfolioSummary();
+      return;
+    }
+
+    await Promise.all([portfolioData.refetchAll()]);
   };
 
-  usePriceUpdates(10 * 60 * 1000);
+  const portfolioRefresh = usePortfolioRefresh({
+    isGuestMode,
+    refetchAll: portfolioData.refetchAll,
+  });
+  const utils = trpc.useUtils();
+  const recordPortfolioHistory = trpc.portfolioHistory.record.useMutation();
+
+  usePriceUpdates(10 * 60 * 1000, isGuestMode, isGuestMode);
 
   // Record current portfolio value once when dashboard loads with holdings (so chart has linked data)
   useEffect(() => {
-    if (hasRecordedThisSession.current || !holdings.data?.length) return;
+    if (
+      isGuestMode ||
+      hasRecordedThisSession.current ||
+      !displayedHoldings?.length
+    )
+      return;
     hasRecordedThisSession.current = true;
-    recordPortfolioMutate(undefined);
-  }, [holdings.data?.length, recordPortfolioMutate]);
-
-  // Mutations
-  const refreshPrices = trpc.prices.refresh.useMutation({
-    onSuccess: data => {
-      if (data.emptyCount > 0 || data.cacheCount > 0) {
-        toast.warning(
-          `${text.refreshedPartial} (${data.liveCount}/${data.assetCount} live, USD/CNY ${data.exchangeRate.toFixed(4)})`
-        );
-      } else {
-        toast.success(
-          `${text.refreshed} (${data.assetCount}/${data.assetCount}, USD/CNY ${data.exchangeRate.toFixed(4)})`
-        );
-      }
-
-      void refreshDashboardData();
-    },
-    onError: error => {
-      toast.error(`${text.refreshFailed} ${error.message}`);
-    },
-  });
+    recordPortfolioHistory.mutate(undefined, {
+      onSuccess: () => {
+        void Promise.all([
+          utils.portfolioHistory.get.invalidate(),
+          utils.portfolioHistory.getByRange.invalidate(),
+        ]);
+      },
+    });
+  }, [displayedHoldings.length, isGuestMode, recordPortfolioHistory, utils]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshPrices.mutateAsync();
-      await recordPortfolioMutateAsync();
+      const result = await portfolioRefresh.refresh();
+
+      if (result == null) {
+        toast.success(text.refreshed);
+      } else {
+        if (result.emptyCount > 0 || result.cacheCount > 0) {
+          toast.warning(
+            `${text.refreshedPartial} (${result.liveCount}/${result.assetCount} live, USD/CNY ${result.exchangeRate.toFixed(4)})`
+          );
+        } else {
+          toast.success(
+            `${text.refreshed} (${result.assetCount}/${result.assetCount}, USD/CNY ${result.exchangeRate.toFixed(4)})`
+          );
+        }
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : text.refreshFailed;
+      toast.error(`${text.refreshFailed} ${message}`);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  if (authLoading) {
+  if (portfolioData.authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         {text.loading}
@@ -117,7 +129,11 @@ export default function Dashboard() {
   }
 
   return (
-    <DashboardLayout exportHoldings={holdings.data}>
+    <DashboardLayout
+      exportHoldings={displayedHoldings}
+      assets={portfolioData.assets}
+      onPortfolioChanged={refreshDashboardData}
+    >
       <div className="space-y-6">
         {/* Header with refresh button */}
         <PageHeader
@@ -130,7 +146,7 @@ export default function Dashboard() {
         >
           <Button
             onClick={handleRefresh}
-            disabled={isRefreshing || refreshPrices.isPending}
+            disabled={isRefreshing || portfolioRefresh.isRefreshing}
             variant="outline"
             size="sm"
           >
@@ -142,25 +158,23 @@ export default function Dashboard() {
         </PageHeader>
 
         {/* Portfolio Summary */}
-        {portfolioSummary.isLoading ? (
+        {activePortfolioSummary.isLoading ? (
           <div className="bg-card rounded-lg p-8 text-center text-muted-foreground">
             {text.loadingPortfolio}
           </div>
         ) : (
-          <PortfolioSummary data={portfolioSummary.data} />
+          <PortfolioSummary data={portfolioData.summary} />
         )}
 
         {/* Holdings List */}
-        {holdings.isLoading ? (
+        {portfolioData.isHoldingsLoading ? (
           <div className="bg-card rounded-lg p-8 text-center text-muted-foreground">
             {text.loadingHoldings}
           </div>
         ) : (
           <HoldingsList
-            holdings={holdings.data || []}
-            onRefresh={() => {
-              void refreshDashboardData();
-            }}
+            holdings={displayedHoldings}
+            portfolioData={portfolioData.summary}
             scrollToCategory={scrollToCategory}
             onScrollToCategoryHandled={() => setScrollToCategory(null)}
           />

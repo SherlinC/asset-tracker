@@ -1,4 +1,13 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, boolean } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  decimal,
+  boolean,
+} from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -38,7 +47,9 @@ export const assets = mysqlTable("assets", {
   // Display name: e.g., "US Dollar", "Bitcoin", "Apple Inc."
   name: varchar("name", { length: 100 }).notNull(),
   // Base currency for the asset (e.g., "CNY" for currencies, "USD" for crypto/stocks)
-  baseCurrency: varchar("baseCurrency", { length: 10 }).default("CNY").notNull(),
+  baseCurrency: varchar("baseCurrency", { length: 10 })
+    .default("CNY")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -57,6 +68,11 @@ export const holdings = mysqlTable("holdings", {
   quantity: decimal("quantity", { precision: 18, scale: 8 }).notNull(),
   // Cost basis (optional, for future analytics)
   costBasis: decimal("costBasis", { precision: 18, scale: 8 }),
+  // Optional annualized rate for time-deposit style cash holdings, e.g. 2.35 means 2.35%
+  annualInterestRate: decimal("annualInterestRate", {
+    precision: 8,
+    scale: 4,
+  }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -110,4 +126,5 @@ export const portfolioValueHistory = mysqlTable("portfolioValueHistory", {
 });
 
 export type PortfolioValueHistory = typeof portfolioValueHistory.$inferSelect;
-export type InsertPortfolioValueHistory = typeof portfolioValueHistory.$inferInsert;
+export type InsertPortfolioValueHistory =
+  typeof portfolioValueHistory.$inferInsert;

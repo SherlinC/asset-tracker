@@ -1,17 +1,18 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 export const isOAuthConfigured = (): boolean =>
-  Boolean(
-    import.meta.env.VITE_OAUTH_PORTAL_URL &&
-      import.meta.env.VITE_APP_ID
-  );
+  Boolean(import.meta.env.VITE_OAUTH_PORTAL_URL && import.meta.env.VITE_APP_ID);
 
-const DEV_LOGOUT_COOKIE = "asset_tracker_dev_logout";
+const GUEST_MODE_COOKIE = "asset_tracker_guest_mode";
 
-/** 开发模式下登出后会设置此 cookie；再次点「进入仪表盘」前需清除 */
-export function clearDevLogoutCookie(): void {
+export function enableGuestMode(): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${DEV_LOGOUT_COOKIE}=; path=/; max-age=0`;
+  document.cookie = `${GUEST_MODE_COOKIE}=1; path=/; max-age=${60 * 60 * 24 * 30}`;
+}
+
+export function clearGuestMode(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${GUEST_MODE_COOKIE}=; path=/; max-age=0`;
 }
 
 // Generate login URL at runtime so redirect URI reflects the current origin.

@@ -85,6 +85,7 @@ export function buildAggregatedHoldings(
         profitLossUSD,
         profitLossPercent,
         change24h: assetSummary?.change24h ?? 0,
+        issueCode: assetSummary?.issueCode,
       };
     })
     .sort((a, b) => b.totalValueUSD - a.totalValueUSD);

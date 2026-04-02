@@ -1,5 +1,7 @@
 import type { Language } from "@/contexts/language-context";
 
+import { loadExcelJs } from "./exceljs";
+
 export type AssetTemplateSheetKey =
   | "a_stock"
   | "hk_stock"
@@ -134,7 +136,7 @@ export function getTemplateColumns(language: Language) {
 }
 
 export async function downloadAssetTemplate(language: Language) {
-  const ExcelJS = await import("exceljs");
+  const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
   const text = TEMPLATE_TEXT[language];
   const columns = TEMPLATE_COLUMNS[language];

@@ -100,6 +100,20 @@ function searchKnownFunds(
   }).slice(0, limit);
 }
 
+function isLikelyPriceableWithoutEodhd(item: InternationalFundSearchResult) {
+  const symbol = item.symbol.trim().toUpperCase();
+
+  if (!symbol) {
+    return false;
+  }
+
+  if (symbol.endsWith(".EUFUND")) {
+    return false;
+  }
+
+  return symbol.startsWith("0P") || symbol.includes(".");
+}
+
 function normalizeYahooFundResult(
   item: NonNullable<YahooSearchResponse["quotes"]>[number],
   query: string
@@ -227,6 +241,7 @@ export async function searchInternationalFunds(
 ): Promise<InternationalFundSearchResult[]> {
   const keyword = q.trim();
   const knownMatches = searchKnownFunds(keyword, limit);
+  const publicKnownMatches = knownMatches.filter(isLikelyPriceableWithoutEodhd);
 
   if (!keyword) {
     return [];
@@ -252,11 +267,13 @@ export async function searchInternationalFunds(
   try {
     const yahooResults = await searchByYahooQuery(keyword, limit);
     return dedupeInternationalFundResults(
-      [...knownMatches, ...yahooResults],
+      ENV.eodhdApiKey
+        ? [...knownMatches, ...yahooResults]
+        : [...yahooResults, ...publicKnownMatches],
       limit
     );
   } catch (yahooErr) {
     console.warn("[Yahoo Fund] Search failed:", (yahooErr as Error).message);
-    return knownMatches;
+    return ENV.eodhdApiKey ? knownMatches : publicKnownMatches;
   }
 }

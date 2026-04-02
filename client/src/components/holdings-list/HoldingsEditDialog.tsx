@@ -70,6 +70,28 @@ export function HoldingsEditDialog({
                 placeholder="留空则不修改"
               />
             </div>
+            {editHolding.assetType === "currency" ? (
+              <div className="space-y-2">
+                <Label htmlFor="edit-annual-rate">定期存款年利率（可选）</Label>
+                <Input
+                  id="edit-annual-rate"
+                  type="text"
+                  inputMode="decimal"
+                  value={editHolding.annualInterestRate}
+                  onChange={event =>
+                    setEditHolding(prev =>
+                      prev
+                        ? {
+                            ...prev,
+                            annualInterestRate: event.target.value,
+                          }
+                        : null
+                    )
+                  }
+                  placeholder="例如 2.35 表示 2.35%"
+                />
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
