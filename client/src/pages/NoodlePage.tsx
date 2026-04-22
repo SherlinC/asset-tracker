@@ -81,45 +81,15 @@ export default function NoodlePage() {
         await portfolioRefresh.refresh();
       }}
     >
-      <div className="dark -m-4 min-h-[calc(100vh-2rem)] bg-[#02040a] p-4 text-white sm:p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_24px_80px_-40px_rgba(0,0,0,0.75)] lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-amber-300/80">
-                <MoonStar className="h-4 w-4" />
-                <span>{text.hint}</span>
-              </div>
-              <div>
-                <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                  <UtensilsCrossed className="h-7 w-7 text-amber-300" />
-                  {text.title}
-                </h1>
-                <p className="mt-2 text-sm leading-6 text-white/65 sm:text-base">
-                  {text.subtitle}
-                </p>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleRefresh}
-              disabled={isRefreshing || portfolioRefresh.isRefreshing}
-              variant="outline"
-              size="sm"
-              className="border-white/15 bg-white/[0.03] text-white hover:bg-white/10 hover:text-white"
-            >
-              <RefreshCw
-                className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              {text.refresh}
-            </Button>
-          </div>
-
+      <div className="dark -m-4 flex flex-1 min-h-[calc(100vh-2rem)] flex-col bg-[#02040a] p-4 text-white sm:p-6">
+        <div className="mx-auto flex w-full flex-1 flex-col space-y-6">
           {portfolioData.isSummaryLoading ? (
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
+            <div className="flex-1 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
               {text.loading}
             </div>
           ) : (
             <NoodlePanel
+              className="flex-1"
               data={portfolioData.summary}
               historyData={portfolioData.history}
               historyLoading={portfolioData.isHistoryLoading}

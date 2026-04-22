@@ -4,6 +4,9 @@ export type NoodleLocation = {
   id: string;
   name: LocalizedText;
   priceCNY: number;
+  lat: number;
+  lon: number;
+  timezone: string;
 };
 
 export const NOODLE_LOCATIONS: readonly NoodleLocation[] = [
@@ -11,21 +14,89 @@ export const NOODLE_LOCATIONS: readonly NoodleLocation[] = [
     id: "chengdu",
     name: { zh: "成都", en: "Chengdu" },
     priceCNY: 15,
+    lat: 30.5728,
+    lon: 104.0668,
+    timezone: "UTC+8"
   },
   {
     id: "beijing",
     name: { zh: "北京", en: "Beijing" },
     priceCNY: 22,
+    lat: 39.9042,
+    lon: 116.4074,
+    timezone: "UTC+8"
   },
   {
     id: "shanghai",
     name: { zh: "上海", en: "Shanghai" },
     priceCNY: 20,
+    lat: 31.2304,
+    lon: 121.4737,
+    timezone: "UTC+8"
   },
   {
     id: "shenzhen",
     name: { zh: "深圳", en: "Shenzhen" },
     priceCNY: 18,
+    lat: 22.5431,
+    lon: 114.0579,
+    timezone: "UTC+8"
+  },
+  {
+    id: "tokyo",
+    name: { zh: "东京", en: "Tokyo" },
+    priceCNY: 50,
+    lat: 35.6762,
+    lon: 139.6503,
+    timezone: "UTC+9"
+  },
+  {
+    id: "sydney",
+    name: { zh: "悉尼", en: "Sydney" },
+    priceCNY: 90,
+    lat: -33.8688,
+    lon: 151.2093,
+    timezone: "UTC+10 / UTC+11"
+  },
+  {
+    id: "london",
+    name: { zh: "伦敦", en: "London" },
+    priceCNY: 120,
+    lat: 51.5074,
+    lon: -0.1278,
+    timezone: "UTC+0 / UTC+1"
+  },
+  {
+    id: "new-york",
+    name: { zh: "纽约", en: "New York" },
+    priceCNY: 140,
+    lat: 40.7128,
+    lon: -74.0060,
+    timezone: "UTC-5 / UTC-4"
+  },
+  {
+    id: "san-francisco",
+    name: { zh: "旧金山", en: "San Francisco" },
+    priceCNY: 150,
+    lat: 37.7749,
+    lon: -122.4194,
+    timezone: "UTC-8 / UTC-7"
+  },
+  {
+    id: "buenos-aires",
+    name: { zh: "布宜诺斯艾利斯", en: "Buenos Aires" },
+    priceCNY: 30,
+    lat: -34.6037,
+    lon: -58.3816,
+    timezone: "UTC-3"
+  },
+  {
+    id: "sao-paulo",
+    name: { zh: "圣保罗", en: "São Paulo" },
+    priceCNY: 40,
+    lat: -23.5505,
+    lon: -46.6333,
+    timezone: "UTC-3"
   },
 ] as const;
 

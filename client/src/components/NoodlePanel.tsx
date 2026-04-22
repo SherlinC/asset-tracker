@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
-import { AnimatedGlobe } from "@/components/noodles/AnimatedGlobe";
+import { InteractiveGlobe, PulsingDot, formatLatitude, formatLongitude } from "@/components/noodles/InteractiveGlobe";
+import { CitySearchDropdown } from "@/components/noodles/CitySearchDropdown";
 import type { PortfolioHistoryRecord } from "@/components/portfolio-value-chart/types";
 import { useLanguage } from "@/hooks/useLanguage";
 import { pickLocalizedText } from "@/lib/navigation";
@@ -97,13 +98,13 @@ export default function NoodlePanel({
 
   return (
     <div
-      className={`overflow-hidden rounded-3xl border border-amber-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(180,83,9,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.12),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(15,10,5,0.98)_42%,_rgba(4,4,6,1))] p-4 text-white/90 shadow-[0_0_0_1px_rgba(245,158,11,0.08),0_24px_60px_-24px_rgba(217,119,6,0.3)] sm:p-5 ${className ?? ""}`}
+      className={`flex flex-col overflow-hidden rounded-3xl border border-amber-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(180,83,9,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.12),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(15,10,5,0.98)_42%,_rgba(4,4,6,1))] p-4 text-white/90 shadow-[0_0_0_1px_rgba(245,158,11,0.08),0_24px_60px_-24px_rgba(217,119,6,0.3)] sm:p-5 ${className ?? ""}`}
     >
       <style>{`
         @keyframes noodle-pulse { 0%, 100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.16); } }
       `}</style>
 
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="shrink-0 flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-[0.28em] text-amber-300/80">
             {pickLocalizedText(NOODLE_PANEL_TEXT.eyebrow, isZh)}
@@ -134,64 +135,42 @@ export default function NoodlePanel({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[280px_minmax(320px,1fr)_320px]">
-        <div className="space-y-3">
-          {NOODLE_LOCATIONS.map((location, index) => {
-            const selected = location.id === locationId;
-
-            return (
-              <button
-                key={location.id}
-                type="button"
-                onClick={() => setLocationId(location.id)}
-                className={`group relative w-full overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all duration-300 ${
-                  selected
-                    ? "border-amber-300/50 bg-amber-400/10 shadow-[0_0_30px_rgba(245,158,11,0.15)]"
-                    : "border-white/10 bg-white/[0.03] hover:border-amber-400/30 hover:bg-white/[0.05]"
-                }`}
-              >
-                <div
-                  className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-amber-300/80 to-transparent"
-                  style={{ opacity: selected ? 1 : 0.35 }}
-                />
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.9)]"
-                      style={{
-                        animation: `noodle-pulse ${1.5 + index * 0.18}s ease-in-out infinite`,
-                      }}
-                    />
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">
-                        {pickLocalizedText(NOODLE_PANEL_TEXT.node, isZh)}
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-white">
-                        {getLocationName(location)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-amber-100">
-                    ¥{location.priceCNY}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="relative overflow-hidden rounded-[32px] border border-amber-400/15 bg-transparent px-4 py-6 sm:px-6">
+      <div className="mt-5 flex-1 min-h-0 grid gap-5 lg:grid-cols-[minmax(400px,1fr)_320px]">
+        <div className="relative overflow-hidden rounded-[32px] border border-amber-400/15 bg-transparent h-full min-h-[400px]">
           <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(245,158,11,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.08)_1px,transparent_1px)] [background-size:32px_32px]" />
 
-          <div className="relative mx-auto h-full w-full min-h-[320px]">
-            <div className="absolute inset-4 flex items-center justify-center sm:inset-6">
-              <div className="h-full w-auto max-w-full aspect-square overflow-hidden rounded-2xl bg-transparent">
-                <AnimatedGlobe
-                  selectedCityName={selectedLocation?.name.zh ?? "成都"}
-                  className="absolute inset-0 h-full w-full"
-                  autoRotate={false}
-                />
-              </div>
+          <div className="absolute inset-0 flex items-center justify-center translate-x-[15%]">
+            <InteractiveGlobe
+              selectedCity={selectedLocation}
+              allCities={NOODLE_LOCATIONS}
+            />
+          </div>
+
+          <div className="absolute top-6 left-6 z-20">
+            <CitySearchDropdown
+              cities={NOODLE_LOCATIONS}
+              selectedCity={selectedLocation}
+              onSelect={setLocationId}
+            />
+          </div>
+
+          <div key={selectedLocation.id} className="absolute bottom-6 left-6 z-20 animate-in fade-in slide-in-from-bottom-2 duration-500 pointer-events-none">
+            <div className="mb-2 flex items-center gap-2">
+              <PulsingDot />
+              <span className="text-lg font-semibold tracking-tight text-white drop-shadow-md">
+                {getLocationName(selectedLocation)}
+              </span>
+            </div>
+            <div className="flex gap-4 border-t border-white/15 pt-2.5">
+              <span className="font-mono text-[10px] text-white/70 drop-shadow-md">
+                {formatLatitude(selectedLocation.lat)}
+              </span>
+              <span className="font-mono text-[10px] text-white/70 drop-shadow-md">
+                {formatLongitude(selectedLocation.lon)}
+              </span>
+              <span className="font-mono text-[10px] text-amber-300/80 drop-shadow-md">
+                {selectedLocation.timezone}
+              </span>
             </div>
           </div>
         </div>

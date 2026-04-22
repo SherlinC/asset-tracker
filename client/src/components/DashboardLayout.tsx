@@ -392,9 +392,9 @@ function DashboardLayoutContent({
         }}
       />
 
-      <SidebarInset>
+      <SidebarInset className="flex flex-col min-h-0">
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-3">
@@ -407,9 +407,9 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">
+        <main className="flex-1 flex flex-col p-4 min-h-0">
           {!isGuestMode && systemHealth.data?.dbConnected === false ? (
-            <div className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 shrink-0">
               {text.databaseOffline}
             </div>
           ) : null}
