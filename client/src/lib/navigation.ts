@@ -57,7 +57,7 @@ export const APP_ROUTES: AppRoute[] = [
 export const DASHBOARD_NAV_ITEMS: NavigationItem[] = [
   {
     icon: LayoutDashboard,
-    label: { zh: "赛博生存面板", en: "Cyber Survival Panel" },
+    label: { zh: "赛博生存", en: "Cyber Survival" },
     path: ROUTE_PATHS.spendover,
   },
   {

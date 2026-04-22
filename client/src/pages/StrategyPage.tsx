@@ -538,29 +538,29 @@ const STRATEGY_VISUALS: Record<
   conservative: {
     icon: Shield,
     activeClass:
-      "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500",
+      "border-primary bg-primary text-primary-foreground",
     inactiveClass:
-      "border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40",
+      "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground",
     badgeClass:
-      "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+      "bg-muted text-muted-foreground",
   },
   balanced: {
     icon: Scale,
     activeClass:
-      "border-violet-600 bg-violet-600 text-white dark:border-violet-500 dark:bg-violet-500",
+      "border-primary bg-primary text-primary-foreground",
     inactiveClass:
-      "border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40",
+      "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground",
     badgeClass:
-      "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+      "bg-muted text-muted-foreground",
   },
   aggressive: {
     icon: Flame,
     activeClass:
-      "border-amber-600 bg-amber-600 text-white dark:border-amber-500 dark:bg-amber-500",
+      "border-primary bg-primary text-primary-foreground",
     inactiveClass:
-      "border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40",
+      "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground",
     badgeClass:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+      "bg-muted text-muted-foreground",
   },
 };
 
@@ -614,10 +614,10 @@ function FragmentationGauge({ score }: { score: number }) {
 }
 
 const BUCKET_BAR_COLORS: Record<AllocationBucket, string> = {
-  cash: "#3b82f6",
-  fixed_income: "#8b5cf6",
-  equity: "#10b981",
-  alternatives: "#f59e0b",
+  cash: "#64748b",
+  fixed_income: "#94a3b8",
+  equity: "#fbbf24",
+  alternatives: "#d97706",
 };
 
 export default function StrategyPage() {
@@ -779,7 +779,7 @@ export default function StrategyPage() {
 
                   <div className="rounded-xl border bg-muted/20 p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-                      <TrendingUp className="h-4 w-4 text-emerald-500" />
+                      <TrendingUp className="h-4 w-4 text-primary" />
                       {text.summary}
                     </div>
                     <div className="space-y-3 text-sm text-muted-foreground">
@@ -827,7 +827,7 @@ export default function StrategyPage() {
                   </div>
                   <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
                     <div className="flex items-start gap-2">
-                      <Landmark className="mt-0.5 h-4 w-4 text-violet-500" />
+                      <Landmark className="mt-0.5 h-4 w-4 text-primary" />
                       <span>
                         {language === "zh"
                           ? `汇率基准：1 USD ≈ ¥${(portfolioData.summary?.exchangeRate ?? DEFAULT_USD_CNY_RATE).toFixed(4)}`
@@ -835,7 +835,7 @@ export default function StrategyPage() {
                       </span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <TrendingUp className="mt-0.5 h-4 w-4 text-emerald-500" />
+                      <TrendingUp className="mt-0.5 h-4 w-4 text-primary" />
                       <span>
                         {language === "zh"
                           ? "看重点：权益权重、现金缓冲、是否过度分散。"
@@ -856,10 +856,10 @@ export default function StrategyPage() {
                   <Button
                     onClick={handleToggleActionPlan}
                     className={cn(
-                      "w-fit gap-2",
+                      "w-fit gap-2 transition-all",
                       showActionPlan
-                        ? ""
-                        : "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-md shadow-violet-500/25 hover:from-violet-700 hover:to-blue-700"
+                        ? "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                        : "bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
                     )}
                     disabled={portfolioData.summary == null}
                   >
@@ -897,7 +897,7 @@ export default function StrategyPage() {
                           className={cn(
                             "rounded-full px-2 py-0.5 text-[11px] font-medium",
                             isActive
-                              ? "bg-white/20 text-white"
+                              ? "bg-background/20 text-primary-foreground"
                               : visual.badgeClass
                           )}
                         >
@@ -993,7 +993,7 @@ export default function StrategyPage() {
                             tickFormatter={v => `${v}%`}
                             tick={{
                               fontSize: 11,
-                              fill: "hsl(var(--muted-foreground))",
+                              fill: "rgba(255, 255, 255, 0.8)", // 纯白微透明
                             }}
                             axisLine={false}
                             tickLine={false}
@@ -1004,7 +1004,7 @@ export default function StrategyPage() {
                             width={90}
                             tick={{
                               fontSize: 12,
-                              fill: "hsl(var(--muted-foreground))",
+                              fill: "rgba(255, 255, 255, 0.8)", // 纯白微透明
                             }}
                             axisLine={false}
                             tickLine={false}
@@ -1012,10 +1012,15 @@ export default function StrategyPage() {
                           <Tooltip
                             formatter={(value: number) => `${value}%`}
                             contentStyle={{
-                              backgroundColor: "hsl(var(--background))",
-                              border: "1px solid hsl(var(--border))",
+                              backgroundColor: "#0a0b12", // card
+                              border: "1px solid rgba(245, 158, 11, 0.2)", // border
                               borderRadius: "0.5rem",
+                              color: "#e2e8f0",
                               fontSize: 12,
+                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5)",
+                            }}
+                            itemStyle={{
+                              color: "#e2e8f0",
                             }}
                           />
                           <Bar
@@ -1023,7 +1028,7 @@ export default function StrategyPage() {
                             name={
                               language === "zh" ? "当前" : "Current"
                             }
-                            fill="hsl(var(--muted-foreground) / 0.25)"
+                            fill="#334155" // slate-700 确保对比度
                             radius={[0, 4, 4, 0]}
                           />
                           <Bar
@@ -1045,7 +1050,7 @@ export default function StrategyPage() {
                     </div>
                     <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1.5">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/25" />
+                        <span className="h-2.5 w-2.5 rounded-sm bg-[#334155]" />
                         {language === "zh" ? "当前" : "Current"}
                       </span>
                       <span className="flex items-center gap-1.5">
@@ -1194,7 +1199,7 @@ export default function StrategyPage() {
                                 {liveStrategyData.marketSnapshot.map(
                                   (item, index) => (
                                     <div key={item} className="flex gap-2">
-                                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-semibold text-primary">
                                         {index + 1}
                                       </span>
                                       <span>{item}</span>
@@ -1213,7 +1218,7 @@ export default function StrategyPage() {
                               <div className="mt-3 space-y-2 text-muted-foreground">
                                 {liveStrategyData.headlineDigest.map(item => (
                                   <div key={item} className="flex gap-2">
-                                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                                     <span>{item}</span>
                                   </div>
                                 ))}
@@ -1277,7 +1282,7 @@ export default function StrategyPage() {
                               </div>
 
                               <div className="rounded-xl border bg-background p-4">
-                                <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-primary">
                                   <ArrowUp className="h-3.5 w-3.5" />
                                   {language === "zh"
                                     ? "关注增持方向"
@@ -1286,7 +1291,7 @@ export default function StrategyPage() {
                                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                                   {liveStrategy.buyIdeas.map(item => (
                                     <div key={item} className="flex gap-2">
-                                      <ArrowUp className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                                      <ArrowUp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                                       <span>{item}</span>
                                     </div>
                                   ))}

@@ -1,12 +1,14 @@
 import {
+  ChevronsUpDown,
   Download,
-  LayoutDashboard,
   Languages,
+  LayoutDashboard,
   LogOut,
   Moon,
   PanelLeft,
   Plus,
   Sun,
+  UtensilsCrossed,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -241,15 +243,15 @@ function DashboardLayoutContent({
           <SidebarHeader className="h-16 justify-center group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pt-3">
             <div className="flex items-center gap-3 px-2 transition-all w-full group-data-[collapsible=icon]:w-fit group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:mx-auto">
               <div className="flex items-center gap-2.5 min-w-0 group-data-[collapsible=icon]:hidden">
-                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(251,191,36,0.15)]">
-                  <LayoutDashboard className="h-4 w-4" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-background shadow-[0_0_12px_rgba(251,191,36,0.4)]">
+                  <UtensilsCrossed className="h-4 w-4 stroke-[2.5px]" />
                 </div>
                 <span className="font-bold tracking-widest truncate text-primary/90 text-[15px] drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]">
                   {isZh ? "坐吃山空" : "SPENDOVER"}
                 </span>
               </div>
-              <div className="hidden group-data-[collapsible=icon]:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(251,191,36,0.15)]">
-                <LayoutDashboard className="h-4 w-4" />
+              <div className="hidden group-data-[collapsible=icon]:flex h-10 w-10 items-center justify-center rounded-full bg-primary text-background shadow-[0_0_12px_rgba(251,191,36,0.4)]">
+                <UtensilsCrossed className="h-5 w-5 stroke-[2.5px]" />
               </div>
             </div>
           </SidebarHeader>
@@ -298,8 +300,7 @@ function DashboardLayoutContent({
                 onClick={handleExportCurrentData}
                 disabled={isExportingData || isExportDataLoading}
                 variant="outline"
-                size="sm"
-                className="w-full justify-start gap-2 rounded-xl group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                className="w-full h-10 justify-start gap-2 rounded-xl group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
               >
                 <Download className="h-4 w-4" />
                 <span className="group-data-[collapsible=icon]:hidden">
@@ -418,8 +419,8 @@ function DashboardLayoutContent({
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20">
-                  <LayoutDashboard className="h-3.5 w-3.5" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-background shadow-[0_0_8px_rgba(251,191,36,0.4)]">
+                  <UtensilsCrossed className="h-3.5 w-3.5 stroke-[2.5px]" />
                 </div>
                 <span className="font-bold tracking-widest text-primary/90 text-sm">
                   {isZh ? "坐吃山空" : "SPENDOVER"}

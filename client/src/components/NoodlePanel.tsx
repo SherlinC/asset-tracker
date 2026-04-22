@@ -92,6 +92,7 @@ export default function NoodlePanel({
     NOODLE_LOCATIONS[0];
   const yearsAtThreeBowls = noodleVizData.bowlsToday / 3 / 365;
   const bowlsInflationAdjusted = noodleVizData.bowlsToday / Math.pow(1.03, 10);
+  const yearsInflationAdjusted = bowlsInflationAdjusted / 3 / 365;
 
   const getLocationName = (location: NoodleLocation) =>
     pickLocalizedText(location.name, isZh);
@@ -229,11 +230,16 @@ export default function NoodlePanel({
               <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">
                 {pickLocalizedText(NOODLE_PANEL_TEXT.inflationStress, isZh)}
               </p>
-              <p className="mt-2 text-xl font-semibold text-white">
-                {isZh
-                  ? formatBowlsZh(bowlsInflationAdjusted)
-                  : formatBowlsEn(bowlsInflationAdjusted)}
-              </p>
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-xl font-semibold text-white">
+                  {isZh
+                    ? formatBowlsZh(bowlsInflationAdjusted)
+                    : formatBowlsEn(bowlsInflationAdjusted)}
+                </p>
+                <span className="text-sm font-medium text-amber-300/80">
+                  ({yearsInflationAdjusted.toFixed(1)} {pickLocalizedText(NOODLE_PANEL_TEXT.yearsUnit, isZh)})
+                </span>
+              </div>
               <p className="mt-2 text-xs leading-5 text-white/65">
                 {pickLocalizedText(
                   NOODLE_PANEL_TEXT.inflationDescription,
