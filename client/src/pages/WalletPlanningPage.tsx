@@ -32,7 +32,7 @@ export default function WalletPlanningPage() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-7xl space-y-8 pb-12">
+      <div className="space-y-8 pb-12">
         <PageHeader
           title={pick(WALLET_PLANNING_COPY.title, isZh)}
           description={pick(WALLET_PLANNING_COPY.description, isZh)}

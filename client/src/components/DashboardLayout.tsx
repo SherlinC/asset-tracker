@@ -1,10 +1,12 @@
 import {
-  ChevronsUpDown,
   Download,
+  LayoutDashboard,
   Languages,
   LogOut,
+  Moon,
   PanelLeft,
   Plus,
+  Sun,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/sidebar";
 import { enableGuestMode } from "@/const";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { usePortfolioData } from "@/hooks/usePortfolioData";
 import { usePortfolioRefresh } from "@/hooks/usePortfolioRefresh";
@@ -137,6 +140,7 @@ function DashboardLayoutContent({
   onPortfolioChanged?: () => Promise<void>;
 }) {
   const { language, toggleLanguage } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
   const isZh = language === "zh";
   const { logout, user } = useAuth();
   const isGuestMode = user?.loginMethod === "guest-access";
@@ -172,7 +176,6 @@ function DashboardLayoutContent({
     ...item,
     label: pickLocalizedText(item.label, isZh),
   }));
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
   const text = isZh
     ? {
@@ -235,26 +238,24 @@ function DashboardLayoutContent({
     <>
       <div className="relative">
         <Sidebar collapsible="icon" className="border-r-0">
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full group-data-[collapsible=icon]:justify-center">
-              <button
-                onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label={isCollapsed ? text.expand : text.collapse}
-                title={isCollapsed ? text.expand : text.collapse}
-              >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-              <div className="flex items-center gap-2 min-w-0 group-data-[collapsible=icon]:hidden">
-                <span className="font-semibold tracking-tight truncate">
-                  {text.navigation}
+          <SidebarHeader className="h-16 justify-center group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pt-3">
+            <div className="flex items-center gap-3 px-2 transition-all w-full group-data-[collapsible=icon]:w-fit group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:mx-auto">
+              <div className="flex items-center gap-2.5 min-w-0 group-data-[collapsible=icon]:hidden">
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(251,191,36,0.15)]">
+                  <LayoutDashboard className="h-4 w-4" />
+                </div>
+                <span className="font-bold tracking-widest truncate text-primary/90 text-[15px] drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]">
+                  {isZh ? "坐吃山空" : "SPENDOVER"}
                 </span>
+              </div>
+              <div className="hidden group-data-[collapsible=icon]:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(251,191,36,0.15)]">
+                <LayoutDashboard className="h-4 w-4" />
               </div>
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
+          <SidebarContent className="gap-0 group-data-[collapsible=icon]:overflow-visible">
+            <SidebarMenu className="px-2 py-2 gap-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:py-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-3">
               <SidebarMenuItem>
                 <Button
                   onClick={() => {
@@ -262,10 +263,12 @@ function DashboardLayoutContent({
                   }}
                   variant="default"
                   size="sm"
-                  className="w-full justify-start gap-2 h-10"
+                  className="w-full justify-start gap-2 h-10 rounded-xl group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>{text.importExcel}</span>
+                  <span className="group-data-[collapsible=icon]:hidden">
+                    {text.importExcel}
+                  </span>
                 </Button>
               </SidebarMenuItem>
               {menuItems.map(item => {
@@ -276,7 +279,7 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className="h-10 rounded-xl transition-all font-normal group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
                     >
                       <item.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
@@ -289,44 +292,46 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
-            <div className="mb-2">
+          <SidebarFooter className="gap-2 p-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-3">
+            <div className="mb-2 group-data-[collapsible=icon]:mb-0">
               <Button
                 onClick={handleExportCurrentData}
                 disabled={isExportingData || isExportDataLoading}
                 variant="outline"
                 size="sm"
-                className="w-full justify-start gap-2"
+                className="w-full justify-start gap-2 rounded-xl group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
               >
                 <Download className="h-4 w-4" />
-                <span>{text.exportCurrentData}</span>
+                <span className="group-data-[collapsible=icon]:hidden">
+                  {text.exportCurrentData}
+                </span>
               </Button>
             </div>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton
-                      size="lg"
-                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                    >
-                      <Avatar className="h-8 w-8 rounded-lg">
-                        <AvatarImage
-                          src={displayUser.avatar}
-                          alt={displayUser.name}
-                        />
-                        <AvatarFallback className="rounded-lg">
-                          {displayUser.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="grid flex-1 text-left text-sm leading-tight">
-                        <span className="truncate font-semibold">
-                          {displayUser.name}
-                        </span>
-                      </div>
-                      <ChevronsUpDown className="ml-auto size-4" />
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
+            <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+              <SidebarMenu className="min-w-0 flex-1 group-data-[collapsible=icon]:flex-none">
+                <SidebarMenuItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <SidebarMenuButton
+                        size="lg"
+                        className="rounded-xl data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:justify-center"
+                      >
+                        <Avatar className="h-8 w-8 rounded-lg">
+                          <AvatarImage
+                            src={displayUser.avatar}
+                            alt={displayUser.name}
+                          />
+                          <AvatarFallback className="rounded-lg">
+                            {displayUser.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                          <span className="truncate font-semibold">
+                            {displayUser.name}
+                          </span>
+                        </div>
+                      </SidebarMenuButton>
+                    </DropdownMenuTrigger>
                   <DropdownMenuContent
                     className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
                     side="right"
@@ -357,6 +362,21 @@ function DashboardLayoutContent({
                         <Languages className="mr-2 size-4" />
                         {language === "zh" ? "Switch to English" : "切换为中文"}
                       </DropdownMenuItem>
+                      {toggleTheme && (
+                        <DropdownMenuItem onClick={toggleTheme}>
+                          {theme === "light" ? (
+                            <>
+                              <Moon className="mr-2 size-4" />
+                              {isZh ? "深色模式" : "Dark Mode"}
+                            </>
+                          ) : (
+                            <>
+                              <Sun className="mr-2 size-4" />
+                              {isZh ? "浅色模式" : "Light Mode"}
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -370,12 +390,12 @@ function DashboardLayoutContent({
                       {isZh ? "退出登录" : "Log out"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </SidebarMenu>
+                  </DropdownMenu>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </div>
           </SidebarFooter>
         </Sidebar>
-        <SidebarRail />
       </div>
 
       <AddHoldingDialog
@@ -397,12 +417,13 @@ function DashboardLayoutContent({
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? text.menu}
-                  </span>
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20">
+                  <LayoutDashboard className="h-3.5 w-3.5" />
                 </div>
+                <span className="font-bold tracking-widest text-primary/90 text-sm">
+                  {isZh ? "坐吃山空" : "SPENDOVER"}
+                </span>
               </div>
             </div>
           </div>

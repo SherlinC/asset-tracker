@@ -1,7 +1,7 @@
 import {
   Brain,
+  LayoutDashboard,
   Map,
-  UtensilsCrossed,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -56,8 +56,8 @@ export const APP_ROUTES: AppRoute[] = [
 
 export const DASHBOARD_NAV_ITEMS: NavigationItem[] = [
   {
-    icon: UtensilsCrossed,
-    label: { zh: "坐吃山空", en: "Spendover" },
+    icon: LayoutDashboard,
+    label: { zh: "赛博生存面板", en: "Cyber Survival Panel" },
     path: ROUTE_PATHS.spendover,
   },
   {

@@ -81,10 +81,10 @@ export default function NoodlePage() {
         await portfolioRefresh.refresh();
       }}
     >
-      <div className="dark -m-4 flex flex-1 min-h-[calc(100vh-2rem)] flex-col bg-[#02040a] p-4 text-white sm:p-6">
+      <div className="-m-4 flex flex-1 min-h-[calc(100vh-2rem)] flex-col bg-background p-4 text-foreground sm:p-6 transition-colors duration-300">
         <div className="mx-auto flex w-full flex-1 flex-col space-y-6">
           {portfolioData.isSummaryLoading ? (
-            <div className="flex-1 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
+            <div className="flex-1 rounded-3xl border border-border bg-card/50 p-10 text-center text-muted-foreground">
               {text.loading}
             </div>
           ) : (
