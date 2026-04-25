@@ -48,15 +48,26 @@ function filterHistoryByDays(
 }
 
 export function usePortfolioData(options?: UsePortfolioDataOptions) {
+  const optionsMemo = useMemo(() => ({
+    includeSummary: true,
+    includeAssets: false,
+    includeHoldings: false,
+    includeHistory: false,
+    historyDays: ALL_HISTORY_DAYS,
+    summaryRefetchInterval: undefined,
+    trackGuestHistory: false,
+    ...options
+  }), [options]);
+
   const {
-    includeSummary = true,
-    includeAssets = false,
-    includeHoldings = false,
-    includeHistory = false,
-    historyDays = ALL_HISTORY_DAYS,
+    includeSummary,
+    includeAssets,
+    includeHoldings,
+    includeHistory,
+    historyDays,
     summaryRefetchInterval,
-    trackGuestHistory = false,
-  } = options ?? {};
+    trackGuestHistory,
+  } = optionsMemo;
 
   const { loading: authLoading, user } = useAuth();
   const guestPortfolio = useGuestPortfolio();
@@ -68,12 +79,11 @@ export function usePortfolioData(options?: UsePortfolioDataOptions) {
     guestPortfolio.ensureHistoryComparisonSeed;
   const recordGuestHistorySnapshot = guestPortfolio.recordHistorySnapshot;
   const lastGuestHistoryKey = useRef<string | null>(null);
-  const isGuestMode = user?.loginMethod === "guest-access";
-  const mode: PortfolioMode | null = authLoading
-    ? null
-    : isGuestMode
-      ? "guest"
-      : "authenticated";
+  const isGuestMode = useMemo(() => user?.loginMethod === "guest-access", [user]);
+  const mode: PortfolioMode | null = useMemo(() => {
+    if (authLoading) return null;
+    return isGuestMode ? "guest" : "authenticated";
+  }, [authLoading, isGuestMode]);
 
   const authSummaryQuery = trpc.portfolio.summary.useQuery(undefined, {
     enabled: includeSummary && !authLoading && !isGuestMode,
@@ -96,13 +106,15 @@ export function usePortfolioData(options?: UsePortfolioDataOptions) {
     }
   );
 
-  const summary: PortfolioData | undefined = isGuestMode
-    ? guestSummaryQuery.data
-    : authSummaryQuery.data;
+  const summary: PortfolioData | undefined = useMemo(() => {
+    return isGuestMode ? guestSummaryQuery.data : authSummaryQuery.data;
+  }, [isGuestMode, guestSummaryQuery.data, authSummaryQuery.data]);
+  
   const holdings = useMemo(
     () => (isGuestMode ? guestHoldings : (authHoldingsQuery.data ?? [])),
     [authHoldingsQuery.data, guestHoldings, isGuestMode]
   );
+  
   const assets = useMemo(
     () =>
       isGuestMode
@@ -112,6 +124,7 @@ export function usePortfolioData(options?: UsePortfolioDataOptions) {
           : uniqueAssetsFromHoldings(holdings),
     [authAssetsQuery.data, guestAssets, holdings, includeAssets, isGuestMode]
   );
+  
   const history = useMemo(
     () =>
       isGuestMode
@@ -191,17 +204,7 @@ export function usePortfolioData(options?: UsePortfolioDataOptions) {
     ]);
   }, [refetchAssets, refetchHistory, refetchHoldings, refetchSummary]);
 
-  return {
-    mode,
-    user,
-    isGuestMode,
-    isAuthenticatedMode: mode === "authenticated",
-    isReady: !authLoading,
-    authLoading,
-    summary,
-    holdings,
-    assets,
-    history,
+  const loadingStates = useMemo(() => ({
     isSummaryLoading: includeSummary
       ? authLoading ||
         (isGuestMode ? guestSummaryQuery.isLoading : authSummaryQuery.isLoading)
@@ -215,6 +218,25 @@ export function usePortfolioData(options?: UsePortfolioDataOptions) {
     isHistoryLoading: includeHistory
       ? authLoading || (!isGuestMode && authHistoryQuery.isLoading)
       : false,
+  }), [
+    includeSummary, includeHoldings, includeAssets, includeHistory,
+    authLoading, isGuestMode,
+    guestSummaryQuery.isLoading, authSummaryQuery.isLoading,
+    authHoldingsQuery.isLoading, authAssetsQuery.isLoading, authHistoryQuery.isLoading
+  ]);
+
+  return {
+    mode,
+    user,
+    isGuestMode,
+    isAuthenticatedMode: mode === "authenticated",
+    isReady: !authLoading,
+    authLoading,
+    summary,
+    holdings,
+    assets,
+    history,
+    ...loadingStates,
     assetsQuery: authAssetsQuery,
     summaryQuery: isGuestMode ? guestSummaryQuery : authSummaryQuery,
     holdingsQuery: authHoldingsQuery,

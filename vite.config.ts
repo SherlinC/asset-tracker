@@ -183,6 +183,25 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // 构建优化
+    minify: "esbuild", // 使用esbuild进行代码压缩
+    sourcemap: false, // 生产环境不生成sourcemap
+    cssCodeSplit: true, // 启用CSS代码分割
+    rollupOptions: {
+      // 代码分割策略
+      output: {
+        manualChunks: {
+          // 将react相关代码打包成一个chunk
+          react: ["react", "react-dom"],
+          // 将第三方库打包成一个chunk
+          vendor: ["@tanstack/react-query", "@trpc/client", "@trpc/react-query", "wouter"],
+          // 将UI组件打包成一个chunk
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-tabs"],
+          // 将图表库打包成一个chunk
+          charts: ["recharts", "d3"],
+        },
+      },
+    },
   },
   server: {
     host: true,
@@ -200,4 +219,6 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
+  // 启用构建缓存
+  cacheDir: path.resolve(import.meta.dirname, "node_modules", ".vite"),
 });

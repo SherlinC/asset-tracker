@@ -29,14 +29,14 @@ export function useAuth(options?: UseAuthOptions) {
     try {
       await logoutMutation.mutateAsync();
     } catch (error: unknown) {
-      if (
-        error instanceof TRPCClientError &&
-        error.data?.code === "UNAUTHORIZED"
-      ) {
-        return;
-      }
-      throw error;
+      // Ignore errors, still proceed with logout
+      console.warn("Logout API error:", error);
     } finally {
+      // Redirect to home page immediately to avoid flashing user info
+      if (typeof window !== "undefined") {
+        window.location.href = "/home?logout=1";
+      }
+      // Invalidate data after redirect
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
     }
@@ -49,7 +49,7 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      loading: meQuery.isLoading && !logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };

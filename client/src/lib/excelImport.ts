@@ -11,6 +11,11 @@ import {
 } from "./excelTemplate";
 import { loadExcelJs } from "./exceljs";
 
+const LEGACY_TEMPLATE_COLUMNS = {
+  zh: ["标的代码", "数量", "成本（人民币）"],
+  en: ["Symbol", "Quantity", "Cost Basis (CNY)"],
+} as const;
+
 export type ImportedAssetType = "currency" | "crypto" | "stock" | "fund";
 
 export type ImportedHoldingPreviewRow = {
@@ -87,12 +92,48 @@ function normalizeSymbol(
 ) {
   if (raw == null) return "";
 
+  const normalized = String(raw).trim().toUpperCase();
+
   if (sheetKey === "china_fund") {
-    const digits = String(raw).replace(/\D/g, "");
+    const digits = normalized.replace(/\D/g, "");
     return digits ? digits.padStart(6, "0").slice(-6) : "";
   }
 
-  return String(raw).trim().toUpperCase();
+  if (sheetKey === "a_stock") {
+    if (/^\d{6}\.(SS|SZ)$/i.test(normalized)) {
+      return normalized;
+    }
+
+    const digits = normalized.replace(/\D/g, "");
+    if (digits.length === 0 || digits.length > 6) {
+      return normalized;
+    }
+
+    const code = digits.padStart(6, "0").slice(-6);
+    if (code.startsWith("6")) {
+      return `${code}.SS`;
+    }
+    if (code.startsWith("0") || code.startsWith("3")) {
+      return `${code}.SZ`;
+    }
+
+    return code;
+  }
+
+  if (sheetKey === "hk_stock") {
+    if (/^\d{4,5}\.HK$/i.test(normalized)) {
+      return normalized;
+    }
+
+    const digits = normalized.replace(/\D/g, "");
+    if (digits.length === 0 || digits.length > 5) {
+      return normalized;
+    }
+
+    return `${digits.padStart(4, "0")}.HK`;
+  }
+
+  return normalized;
 }
 
 function validateSymbol(sheetKey: AssetTemplateSheetKey, symbol: string) {
@@ -104,11 +145,11 @@ function validateSymbol(sheetKey: AssetTemplateSheetKey, symbol: string) {
     case "a_stock":
       return /^\d{6}\.(SS|SZ)$/i.test(symbol)
         ? null
-        : "A-share symbols must look like 600519.SS or 000001.SZ";
+        : "A-share symbols must look like 600519 or 000001.SZ";
     case "hk_stock":
       return /^\d{4,5}\.HK$/i.test(symbol)
         ? null
-        : "HK symbols must look like 0700.HK";
+        : "HK symbols must look like 0700 or 0700.HK";
     case "us_stock":
       return /^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol)
         ? null
@@ -168,6 +209,18 @@ function rowHasContent(values: Array<string | number | null>) {
   });
 }
 
+function normalizeHeaderCells(values: Array<string | number | null>) {
+  const normalized = values.map(value =>
+    String(getCellPrimitive(value) ?? "").trim()
+  );
+
+  while (normalized.length > 0 && normalized[normalized.length - 1] === "") {
+    normalized.pop();
+  }
+
+  return normalized.join("|");
+}
+
 export async function parseAssetWorkbook(
   file: File,
   language: Language
@@ -182,6 +235,8 @@ export async function parseAssetWorkbook(
   const expectedHeaders = new Set([
     getTemplateColumns(language).join("|"),
     getTemplateColumns(language === "zh" ? "en" : "zh").join("|"),
+    LEGACY_TEMPLATE_COLUMNS[language].join("|"),
+    LEGACY_TEMPLATE_COLUMNS[language === "zh" ? "en" : "zh"].join("|"),
   ]);
 
   const rows: ImportedHoldingPreviewRow[] = [];
@@ -195,10 +250,7 @@ export async function parseAssetWorkbook(
     const headerCells = worksheet.getRow(1).values as Array<
       string | number | null
     >;
-    const normalizedHeader = headerCells
-      .slice(1, 4)
-      .map(value => String(getCellPrimitive(value) ?? "").trim())
-      .join("|");
+    const normalizedHeader = normalizeHeaderCells(headerCells.slice(1, 4));
 
     if (!expectedHeaders.has(normalizedHeader)) {
       globalErrors.push(`Sheet "${worksheet.name}" has unexpected headers.`);
@@ -241,7 +293,7 @@ export async function parseAssetWorkbook(
   rows.forEach(row => {
     if (
       row.errors.length === 0 &&
-      ["us_stock", "hk_stock", "crypto", "currency"].includes(row.sheetKey) &&
+      ["crypto", "currency"].includes(row.sheetKey) &&
       !knownSymbols.has(row.symbol)
     ) {
       row.errors.push("Symbol is not in the current built-in catalog");

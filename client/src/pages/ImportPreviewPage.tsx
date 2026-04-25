@@ -530,7 +530,7 @@ export default function ImportPreviewPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-blue-700 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-300">
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 text-sm text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-300">
                     {text.overwriteHint}
                   </div>
                 )}

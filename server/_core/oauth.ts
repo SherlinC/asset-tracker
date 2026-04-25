@@ -2,6 +2,7 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
+import { ENV } from "./env";
 import { sdk } from "./sdk";
 
 import type { Express, Request, Response } from "express";
@@ -13,6 +14,11 @@ function getQueryParam(req: Request, key: string): string | undefined {
 
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
+    if (ENV.publicGuestOnly) {
+      res.redirect(302, "/?guestOnly=1");
+      return;
+    }
+
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
@@ -27,6 +33,16 @@ export function registerOAuthRoutes(app: Express) {
 
       if (!userInfo.openId) {
         res.status(400).json({ error: "openId missing from user info" });
+        return;
+      }
+
+      if (ENV.ownerOpenId.length === 0) {
+        res.status(500).json({ error: "OWNER_OPEN_ID is not configured" });
+        return;
+      }
+
+      if (userInfo.openId !== ENV.ownerOpenId) {
+        res.redirect(302, "/?guestOnly=1");
         return;
       }
 

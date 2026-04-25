@@ -52,6 +52,9 @@ import { cn } from "@/lib/utils";
 
 import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
+// Import types from server
+import type { LiveStrategyResponse } from "@/../server/strategyAdvisor";
+
 type PortfolioAsset = {
   id: number;
   symbol: string;
@@ -693,7 +696,7 @@ export default function StrategyPage() {
     };
   }, [language, portfolioData.summary]);
   const liveStrategyData =
-    (generateStrategyMutation.data as LiveStrategyData | undefined) ??
+    (generateStrategyMutation.data as LiveStrategyResponse | undefined) ??
     undefined;
   const liveStrategy = liveStrategyData?.strategies[selectedStrategy];
   const strategyResetKey = `${language}:${portfolioData.summary?.totalValueUSD ?? 0}:${portfolioData.summary?.exchangeRate ?? 0}:${portfolioData.summary?.assets.length ?? 0}`;
@@ -1168,7 +1171,7 @@ export default function StrategyPage() {
 
                     {liveStrategyData && liveStrategy ? (
                       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                        <Card className="border-blue-200/40 bg-blue-50/30 shadow-sm dark:border-blue-900/30 dark:bg-blue-950/10">
+                        <Card className="border-amber-200/40 bg-amber-50/30 shadow-sm dark:border-amber-900/30 dark:bg-amber-950/10">
                           <CardHeader className="pb-3">
                             <CardTitle className="text-base">
                               {language === "zh"

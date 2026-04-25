@@ -118,7 +118,7 @@ export function getAssetCategoryKey(
 export function getTypeColor(type: string) {
   switch (type) {
     case "currency":
-      return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
+      return "bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-100";
     case "crypto":
       return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100";
     case "stock":

@@ -46,6 +46,80 @@ type ChinaFundItem = {
   name: string;
 };
 
+function getAssetSearchTokens(asset: AssetOption) {
+  const tokens = new Set<string>();
+  const normalizedSymbol = asset.symbol.trim().toUpperCase();
+
+  if (normalizedSymbol) {
+    tokens.add(normalizedSymbol);
+  }
+
+  const normalizedDisplaySymbol = asset.displaySymbol?.trim().toUpperCase();
+  if (normalizedDisplaySymbol) {
+    tokens.add(normalizedDisplaySymbol);
+  }
+
+  for (const keyword of asset.keywords ?? []) {
+    const normalizedKeyword = keyword.trim().toUpperCase();
+    if (normalizedKeyword) {
+      tokens.add(normalizedKeyword);
+    }
+  }
+
+  const hkMatch = normalizedSymbol.match(/^(\d{4,5})\.HK$/);
+  if (hkMatch) {
+    tokens.add(hkMatch[1]);
+  }
+
+  const cnMatch = normalizedSymbol.match(/^(\d{6})\.(SS|SZ|BJ)$/);
+  if (cnMatch) {
+    tokens.add(cnMatch[1]);
+  }
+
+  return Array.from(tokens);
+}
+
+export function filterAssetOptions(options: AssetOption[], query: string) {
+  const normalizedQuery = query.trim().toUpperCase();
+
+  if (!normalizedQuery) {
+    return options;
+  }
+
+  return options.filter(asset => {
+    const haystacks = [
+      asset.symbol,
+      asset.displaySymbol,
+      asset.name,
+      asset.market,
+      asset.issuer,
+      ...(asset.keywords ?? []),
+      ...getAssetSearchTokens(asset),
+    ]
+      .filter(Boolean)
+      .map(value => value!.toUpperCase());
+
+    return haystacks.some(value => value.includes(normalizedQuery));
+  });
+}
+
+export function resolveManualAssetSymbol(
+  options: AssetOption[],
+  rawInput: string
+) {
+  const normalizedInput = rawInput.trim().toUpperCase();
+
+  if (!normalizedInput) {
+    return "";
+  }
+
+  const matched = options.find(asset =>
+    getAssetSearchTokens(asset).includes(normalizedInput)
+  );
+
+  return matched?.symbol ?? "";
+}
+
 export function buildStockListForCategory(
   selectedCategory: AssetCategory,
   selectedStockSubCategory: StockSubCategory,

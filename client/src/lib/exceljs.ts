@@ -2,21 +2,31 @@ import ExcelJSImport from "exceljs";
 
 type ExcelJsCell = {
   value: unknown;
+  font?: unknown;
+  fill?: unknown;
+  alignment?: unknown;
+  border?: unknown;
 };
 
 type ExcelJsRow = {
   values: unknown[];
+  height?: number;
   font?: unknown;
   fill?: unknown;
   getCell(index: number): ExcelJsCell;
+  eachCell(callback: (cell: ExcelJsCell, colNumber: number) => void): void;
 };
 
 type ExcelJsWorksheet = {
   name: string;
+  rowCount: number;
   columns?: unknown;
+  autoFilter?: string;
   getRow(index: number): ExcelJsRow;
+  getCell(address: string): ExcelJsCell;
   addRow(data: unknown): unknown;
   eachRow(callback: (row: ExcelJsRow, rowNumber: number) => void): void;
+  mergeCells(range: string): void;
 };
 
 type ExcelJsModule = {

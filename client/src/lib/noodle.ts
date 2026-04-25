@@ -110,7 +110,7 @@ export const NOODLE_PANEL_TEXT = {
     en: "Spendover · Cyber Consumption Console",
   },
   description: {
-    zh: "把总资产映射成城市生存半径。金色粒子会先聚拢成一碗面，再以克制的立体节奏缓慢旋转，右侧面板展示你的实时消费火力与续航。",
+    zh: "把总资产映射成城市生存半径，右侧面板展示你的实时消费火力与续航。",
     en: "Map total assets into a city survival radius. Gold particles gather into a noodle bowl, then rotate with a restrained 3D rhythm while the right panel shows your live consumption firepower and runway.",
   },
   totalAssets: {

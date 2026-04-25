@@ -21,6 +21,9 @@ import type { Request } from "express";
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
+const isOwnerOpenId = (openId: string): boolean =>
+  ENV.ownerOpenId.length > 0 && openId === ENV.ownerOpenId;
+
 export type SessionPayload = {
   openId: string;
   appId: string;
@@ -192,6 +195,10 @@ class SDKServer {
     openId: string,
     options: { expiresInMs?: number; name?: string } = {}
   ): Promise<string> {
+    if (!isOwnerOpenId(openId)) {
+      throw ForbiddenError("Only the site owner can sign in to saved history.");
+    }
+
     return this.signSession(
       {
         openId,
@@ -292,6 +299,11 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    if (!isOwnerOpenId(sessionUserId)) {
+      throw ForbiddenError("Only the site owner can access saved history.");
+    }
+
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically

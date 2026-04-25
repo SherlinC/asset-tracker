@@ -94,6 +94,8 @@ function createEmptyStoredPortfolio(): StoredGuestPortfolio {
 }
 
 function createSeededGuestPortfolio(): StoredGuestPortfolio {
+  console.log("[createSeededGuestPortfolio] Creating seeded guest portfolio");
+  console.log("[createSeededGuestPortfolio] DEFAULT_GUEST_SEED_PORTFOLIO:", DEFAULT_GUEST_SEED_PORTFOLIO);
   const nowIso = new Date().toISOString();
   const assetIdsBySymbol = new Map<string, number>();
 
@@ -118,6 +120,7 @@ function createSeededGuestPortfolio(): StoredGuestPortfolio {
       const assetId = assetIdsBySymbol.get(holding.symbol);
 
       if (assetId == null) {
+        console.warn("[createSeededGuestPortfolio] Asset not found for symbol:", holding.symbol);
         return [];
       }
 
@@ -136,7 +139,7 @@ function createSeededGuestPortfolio(): StoredGuestPortfolio {
     }
   );
 
-  return {
+  const result = {
     assets,
     holdings,
     history: DEFAULT_GUEST_SEED_PORTFOLIO.history,
@@ -144,35 +147,56 @@ function createSeededGuestPortfolio(): StoredGuestPortfolio {
     nextHoldingId: holdings.length + 1,
     seedVersion: GUEST_PORTFOLIO_SEED_VERSION,
   };
+  
+  console.log("[createSeededGuestPortfolio] Created seeded portfolio:", result);
+  return result;
 }
 
 function normalizeStoredGuestPortfolio(
   state: Partial<StoredGuestPortfolio> | null | undefined
 ): StoredGuestPortfolio {
-  const assets = Array.isArray(state?.assets) ? state.assets : [];
-  const holdings = Array.isArray(state?.holdings) ? state.holdings : [];
-  const history = Array.isArray(state?.history) ? state.history : [];
-  const seedVersion =
-    typeof state?.seedVersion === "number" ? state.seedVersion : undefined;
-
-  if (assets.length === 0 && holdings.length === 0) {
+  console.log("[normalizeStoredGuestPortfolio] Normalizing guest portfolio");
+  console.log("[normalizeStoredGuestPortfolio] Input state:", state);
+  // If state is null or undefined, create new seeded portfolio
+  if (!state) {
+    console.log("[normalizeStoredGuestPortfolio] State is null/undefined, creating seeded portfolio");
     return createSeededGuestPortfolio();
   }
 
-  return {
+  const assets = Array.isArray(state.assets) ? state.assets : [];
+  const holdings = Array.isArray(state.holdings) ? state.holdings : [];
+  const history = Array.isArray(state.history) ? state.history : [];
+  const seedVersion = typeof state.seedVersion === "number" ? state.seedVersion : undefined;
+  
+  console.log("[normalizeStoredGuestPortfolio] Extracted values:");
+  console.log("  - assets length:", assets.length);
+  console.log("  - holdings length:", holdings.length);
+  console.log("  - seedVersion:", seedVersion);
+  console.log("  - GUEST_PORTFOLIO_SEED_VERSION:", GUEST_PORTFOLIO_SEED_VERSION);
+
+  // Create new seeded portfolio if seed version mismatch
+  if (seedVersion !== GUEST_PORTFOLIO_SEED_VERSION) {
+    console.log("[normalizeStoredGuestPortfolio] Seed version mismatch, creating seeded portfolio");
+    return createSeededGuestPortfolio();
+  }
+
+  // Create new seeded portfolio if no assets and no holdings
+  if (assets.length === 0 && holdings.length === 0) {
+    console.log("[normalizeStoredGuestPortfolio] No assets and holdings, creating seeded portfolio");
+    return createSeededGuestPortfolio();
+  }
+
+  const result = {
     assets,
     holdings,
     history,
-    nextAssetId:
-      typeof state?.nextAssetId === "number"
-        ? state.nextAssetId
-        : assets.length + 1,
-    nextHoldingId:
-      typeof state?.nextHoldingId === "number"
-        ? state.nextHoldingId
-        : holdings.length + 1,
+    nextAssetId: typeof state.nextAssetId === "number" ? state.nextAssetId : assets.length + 1,
+    nextHoldingId: typeof state.nextHoldingId === "number" ? state.nextHoldingId : holdings.length + 1,
     seedVersion: seedVersion ?? GUEST_PORTFOLIO_SEED_VERSION,
   };
+  
+  console.log("[normalizeStoredGuestPortfolio] Returning normalized portfolio:", result);
+  return result;
 }
 
 function pruneUnusedAssets(
@@ -189,20 +213,29 @@ function toDate(value: string): Date {
 }
 
 function readStoredGuestPortfolio(): StoredGuestPortfolio {
+  console.log("[readStoredGuestPortfolio] Reading guest portfolio from local storage");
   if (typeof window === "undefined") {
+    console.log("[readStoredGuestPortfolio] Window undefined, returning empty portfolio");
     return createEmptyStoredPortfolio();
   }
 
   try {
     const raw = window.localStorage.getItem(GUEST_PORTFOLIO_STORAGE_KEY);
+    console.log("[readStoredGuestPortfolio] Raw data from localStorage:", raw);
     if (!raw) {
+      console.log("[readStoredGuestPortfolio] No data in localStorage, creating seeded portfolio");
       return createSeededGuestPortfolio();
     }
 
     const parsed = JSON.parse(raw) as Partial<StoredGuestPortfolio>;
+    console.log("[readStoredGuestPortfolio] Parsed data:", parsed);
 
-    return normalizeStoredGuestPortfolio(parsed);
-  } catch {
+    const normalized = normalizeStoredGuestPortfolio(parsed);
+    console.log("[readStoredGuestPortfolio] Normalized data:", normalized);
+    return normalized;
+  } catch (error) {
+    console.error("[readStoredGuestPortfolio] Error reading portfolio:", error);
+    console.log("[readStoredGuestPortfolio] Creating seeded portfolio due to error");
     return createSeededGuestPortfolio();
   }
 }
@@ -282,6 +315,11 @@ function writeStoredGuestPortfolio(state: StoredGuestPortfolio) {
   emitGuestPortfolioUpdate();
 }
 
+export function resetGuestPortfolioToSeed() {
+  if (typeof window === "undefined") return;
+  writeStoredGuestPortfolio(createSeededGuestPortfolio());
+}
+
 function updateStoredGuestPortfolio(
   updater: (state: StoredGuestPortfolio) => StoredGuestPortfolio
 ) {
@@ -297,13 +335,16 @@ function getGuestPortfolioSnapshot(): GuestPortfolioSnapshot {
 
   const raw = window.localStorage.getItem(GUEST_PORTFOLIO_STORAGE_KEY);
 
+  // Use cache if data hasn't changed
   if (raw === cachedGuestPortfolioRaw) {
     return cachedGuestPortfolioSnapshot;
   }
 
+  // Read fresh state if data has changed
   const state = readStoredGuestPortfolio();
   const snapshot = buildGuestPortfolioSnapshot(state);
 
+  // Update cache
   cachedGuestPortfolioRaw = raw;
   cachedGuestPortfolioSnapshot = snapshot;
 

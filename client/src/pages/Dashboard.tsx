@@ -1,5 +1,5 @@
 import { PieChart, RefreshCw } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 
 import DashboardLayout from "@/components/DashboardLayout";
@@ -18,7 +18,7 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [scrollToCategory, setScrollToCategory] = useState<string | null>(null);
   const hasRecordedThisSession = useRef(false);
-  const text =
+  const text = useMemo(() =>
     language === "zh"
       ? {
           refreshed: "价格和汇率已刷新",
@@ -44,7 +44,9 @@ export default function Dashboard() {
           refresh: "Refresh",
           loadingPortfolio: "Loading portfolio...",
           loadingHoldings: "Loading holdings...",
-        };
+        },
+    [language]
+  );
 
   const portfolioData = usePortfolioData({
     includeSummary: true,

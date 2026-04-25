@@ -1,9 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { NoodleLocation } from "@/lib/noodle";
-
-const GOLD_CORE = '251,191,36';
-const GOLD_ACCENT = '245,158,11';
-const GOLD_DEEP = '180,83,9';
 
 export function formatLatitude(lat: number) {
   return `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? 'N' : 'S'}`;
@@ -148,8 +144,8 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
         if (!isLand && Math.random() > 0.15) continue;
         globePts.push({
           ...latLonToXYZ(lat, lon),
-          size: isLand ? (1.5 + Math.random() * 0.8) : (0.8 + Math.random() * 0.6),
-          brightness: isLand ? (0.6 + Math.random() * 0.4) : (0.15 + Math.random() * 0.15),
+          size: isLand ? (1.8 + Math.random() * 1.0) : (1.0 + Math.random() * 0.6),
+          brightness: isLand ? (0.7 + Math.random() * 0.3) : (0.2 + Math.random() * 0.15),
           phase: Math.random() * Math.PI * 2
         });
       }
@@ -165,6 +161,11 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
     function drawGlobe() {
       if (!gc || !gx) return;
       globeTick += 0.012;
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const GOLD_CORE = isDark ? '251,191,36' : '203,163,88';
+      const GOLD_ACCENT = isDark ? '245,158,11' : '161,161,170';
+      const GOLD_DEEP = isDark ? '180,83,9' : '212,212,216';
 
       const rot = rotationRef.current;
       const ease = 0.035;
@@ -215,10 +216,16 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
       const sizeScale = R / 300;
 
       gx.beginPath(); gx.arc(cx, cy, R, 0, Math.PI * 2);
-      const bgGrad = gx.createRadialGradient(cx, cy, R * 0.5, cx, cy, R);
-      bgGrad.addColorStop(0, 'rgba(10,8,4,0.4)');
-      bgGrad.addColorStop(1, 'rgba(10,8,4,0.9)');
-      gx.fillStyle = bgGrad; gx.fill();
+      
+      if (isDark) {
+        const bgGrad = gx.createRadialGradient(cx, cy, R * 0.5, cx, cy, R);
+        bgGrad.addColorStop(0, 'rgba(10,8,4,0.4)');
+        bgGrad.addColorStop(1, 'rgba(10,8,4,0.9)');
+        gx.fillStyle = bgGrad; 
+      } else {
+        gx.fillStyle = 'transparent';
+      }
+      gx.fill();
 
       for (let p = -80; p <= 80; p += 20) {
         const latDeg = p;
@@ -231,7 +238,7 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
           const sx = cx - rp.x * R, sy = cy - rp.y * R;
           first ? gx.moveTo(sx, sy) : gx.lineTo(sx, sy); first = false;
         }
-        gx.strokeStyle = `rgba(${GOLD_ACCENT},0.08)`; gx.lineWidth = 0.4; gx.stroke();
+        gx.strokeStyle = isDark ? `rgba(${GOLD_ACCENT},0.08)` : `rgba(${GOLD_ACCENT},0.35)`; gx.lineWidth = 0.4; gx.stroke();
       }
 
       for (let m = 0; m < 18; m++) {
@@ -245,7 +252,7 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
           const sx = cx - rp.x * R, sy = cy - rp.y * R;
           first ? gx.moveTo(sx, sy) : gx.lineTo(sx, sy); first = false;
         }
-        gx.strokeStyle = `rgba(${GOLD_ACCENT},0.06)`; gx.lineWidth = 0.4; gx.stroke();
+        gx.strokeStyle = isDark ? `rgba(${GOLD_ACCENT},0.06)` : `rgba(${GOLD_ACCENT},0.3)`; gx.lineWidth = 0.4; gx.stroke();
       }
 
       gx.save();
@@ -264,17 +271,17 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
 
         if (pt.rz < 0) {
           const backDepth = Math.max(0, 1 + pt.rz);
-          const alpha = pt.brightness * backDepth * backDepth * 0.08;
+          const alpha = pt.brightness * backDepth * backDepth * (isDark ? 0.08 : 0.15);
           gx.beginPath(); gx.arc(sx, sy, scaledSize * 0.6, 0, Math.PI * 2);
           gx.fillStyle = `rgba(${GOLD_DEEP},${alpha})`; gx.fill();
         } else {
           const edgeFade = Math.pow(depth, 0.5);
           const twinkle = 0.7 + 0.3 * Math.sin(globeTick * 1.2 + pt.phase);
-          const alpha = pt.brightness * edgeFade * twinkle * 0.75;
+          const alpha = pt.brightness * edgeFade * twinkle * (isDark ? 0.75 : 1.0);
           gx.beginPath(); gx.arc(sx, sy, scaledSize * edgeFade, 0, Math.PI * 2);
           const dotGradient = gx.createRadialGradient(sx, sy, 0, sx, sy, scaledSize * edgeFade * 2.4);
           dotGradient.addColorStop(0, `rgba(${GOLD_CORE},${alpha})`);
-          dotGradient.addColorStop(0.55, `rgba(${GOLD_ACCENT},${alpha * 0.75})`);
+          dotGradient.addColorStop(0.55, `rgba(${GOLD_ACCENT},${alpha * (isDark ? 0.75 : 0.9)})`);
           dotGradient.addColorStop(1, `rgba(${GOLD_DEEP},0)`);
           gx.fillStyle = dotGradient; gx.fill();
         }
@@ -282,7 +289,7 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
       gx.restore();
 
       gx.beginPath(); gx.arc(cx, cy, R, 0, Math.PI * 2);
-      gx.strokeStyle = `rgba(${GOLD_ACCENT},0.18)`; gx.lineWidth = 1; gx.stroke();
+      gx.strokeStyle = isDark ? `rgba(${GOLD_ACCENT},0.18)` : `rgba(${GOLD_ACCENT},0.8)`; gx.lineWidth = 1; gx.stroke();
 
       highlightedCities.forEach(city => {
         const rotated = applyRotation(city.point);
@@ -291,21 +298,21 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
         const isSelected = city.id === selectedCityRef.current.id;
 
         if (rotated.z > 0) {
-          const alpha = isSelected ? 0.95 : 0.45;
-          const radius = (isSelected ? 4.5 : 2) * sizeScale;
-          const haloRadius = (isSelected ? 20 : 6) * sizeScale;
+          const alpha = isSelected ? 1 : 0.45;
+          const radius = (isSelected ? 5 : 2) * sizeScale;
+          const haloRadius = (isSelected ? 25 : 6) * sizeScale;
 
           gx.beginPath(); gx.arc(sx, sy, radius, 0, Math.PI * 2);
-          gx.fillStyle = isSelected ? '#fbbf24' : `rgba(${GOLD_ACCENT},0.6)`;
-          gx.shadowColor = '#f59e0b';
-          gx.shadowBlur = isSelected ? 20 * sizeScale : 0;
+          gx.fillStyle = isSelected ? '#cba358' : `rgba(${GOLD_ACCENT},0.6)`;
+          gx.shadowColor = isDark ? '#f59e0b' : '#cba358';
+          gx.shadowBlur = isSelected ? 25 * sizeScale : 0;
           gx.fill();
           gx.shadowBlur = 0;
 
           if (isSelected) {
             const cityGlow = gx.createRadialGradient(sx, sy, 0, sx, sy, haloRadius);
-            cityGlow.addColorStop(0, `rgba(${GOLD_CORE},${alpha * 0.38})`);
-            cityGlow.addColorStop(0.6, `rgba(${GOLD_ACCENT},${alpha * 0.12})`);
+            cityGlow.addColorStop(0, `rgba(${GOLD_CORE},${alpha * 0.7})`);
+            cityGlow.addColorStop(0.6, `rgba(${GOLD_ACCENT},${alpha * 0.3})`);
             cityGlow.addColorStop(1, `rgba(${GOLD_DEEP},0)`);
             gx.beginPath(); gx.arc(sx, sy, haloRadius, 0, Math.PI * 2);
             gx.fillStyle = cityGlow;
@@ -313,9 +320,9 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
 
             [1, 2, 3].forEach(k => {
               const prog = ((globeTick * 0.7 + k * 0.33) % 1);
-              gx.beginPath(); gx.arc(sx, sy, prog * 22 * sizeScale, 0, Math.PI * 2);
-              gx.strokeStyle = `rgba(${GOLD_CORE},${(1 - prog) * 0.7})`;
-              gx.lineWidth = 1.2; gx.stroke();
+              gx.beginPath(); gx.arc(sx, sy, prog * 28 * sizeScale, 0, Math.PI * 2);
+              gx.strokeStyle = `rgba(${GOLD_CORE},${(1 - prog) * 0.9})`;
+              gx.lineWidth = 1.5; gx.stroke();
             });
           } else {
             gx.beginPath();
@@ -357,14 +364,24 @@ export const InteractiveGlobe = ({ selectedCity, allCities }: { selectedCity: No
 };
 
 export const PulsingDot = () => {
-  const dotStyle = {
-    display: 'inline-block',
-    width: '7px',
-    height: '7px',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle at 30% 30%, #fde68a, #fbbf24 45%, #f59e0b 100%)',
-    boxShadow: '0 0 8px rgba(245,158,11,0.95)',
-    animation: 'locPulse 2s infinite',
+    return (
+      <>
+        <style>{`
+          @keyframes locPulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(203, 163, 88, 0.95); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(203, 163, 88, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(203, 163, 88, 0); }
+          }
+          .dark .loc-pulse-dot {
+            animation: locPulseDark 2s infinite;
+          }
+          @keyframes locPulseDark {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+          }
+        `}</style>
+        <span className="loc-pulse-dot inline-block w-[8px] h-[8px] rounded-full bg-[radial-gradient(circle_at_30%_30%,_#fde68a,_#cba358_45%,_#8a6d3b_100%)] dark:bg-[radial-gradient(circle_at_30%_30%,_#fde68a,_#fbbf24_45%,_#f59e0b_100%)] shadow-[0_0_12px_rgba(203,163,88,1)] dark:shadow-[0_0_8px_rgba(245,158,11,0.95)] animate-[locPulse_2s_infinite]" />
+      </>
+    );
   };
-  return <span style={dotStyle} />;
-};

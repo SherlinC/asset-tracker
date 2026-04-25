@@ -11,6 +11,7 @@ import {
   type StockSubCategory,
 } from "@/components/add-holding/catalog";
 import { buildFetchPriceInput } from "@/components/add-holding/helpers";
+import { resolveManualAssetSymbol } from "@/components/add-holding/options";
 import type {
   AddHoldingDialogProps as Props,
   CurrencyDisplay,
@@ -172,6 +173,9 @@ export default function AddHoldingDialog({
     }
 
     setStockSearchInput(nextValue);
+
+    const matchedSymbol = resolveManualAssetSymbol(assetsInCategory, nextValue);
+    setSelectedAssetSymbol(matchedSymbol);
   };
 
   const handleCancel = () => {

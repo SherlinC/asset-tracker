@@ -28,22 +28,22 @@ export const CitySearchDropdown = ({ cities, selectedCity, onSelect }: { cities:
   });
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '260px', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ marginBottom: '10px', fontSize: '11px', color: 'rgba(255,255,255,0.72)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+    <div ref={wrapperRef} className="relative w-[260px] font-sans">
+      <div className="mb-2.5 text-[11px] uppercase tracking-[0.08em] text-stone-600 dark:text-white/70">
         {isZh ? "城市点位搜索" : "City Search"}
       </div>
       <div
         onClick={() => setIsOpen(true)}
-        style={{
-          display: 'flex', alignItems: 'center', padding: '12px 14px',
-          background: isOpen ? 'rgba(245,158,11,0.12)' : 'rgba(10,8,4,0.58)',
-          border: isOpen ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(245,158,11,0.2)',
-          borderRadius: '14px', backdropFilter: 'blur(14px)', cursor: 'text',
-          transition: 'all 0.2s ease',
-          boxShadow: isOpen ? '0 0 15px rgba(245,158,11,0.1)' : 'none'
-        }}
+        className={`flex items-center px-3.5 py-3 rounded-[14px] backdrop-blur-md cursor-text transition-all duration-200 border ${
+          isOpen
+            ? 'bg-zinc-100/50 dark:bg-amber-500/10 border-zinc-300 dark:border-amber-400/50 shadow-[0_0_15px_rgba(0,0,0,0.05)] dark:shadow-[0_0_15px_rgba(245,158,11,0.1)]'
+            : 'bg-white/80 dark:bg-black/60 border-zinc-200 dark:border-amber-500/20 shadow-none'
+        }`}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isOpen ? '#fbbf24' : 'rgba(255,255,255,0.5)'} strokeWidth="2" style={{ marginRight: '10px' }}>
+        <svg 
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" 
+          className={`mr-2.5 ${isOpen ? 'text-[#cba358] dark:text-amber-400' : 'text-stone-400 dark:text-white/50'}`}
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
@@ -53,17 +53,15 @@ export const CitySearchDropdown = ({ cities, selectedCity, onSelect }: { cities:
           value={isOpen ? query : `${pickLocalizedText(selectedCity.name, isZh)} · ¥${selectedCity.priceCNY}`}
           onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
           onFocus={() => { setIsOpen(true); setQuery(''); }}
-          style={{
-            background: 'transparent', border: 'none', outline: 'none',
-            color: isOpen && query ? '#fff' : (isOpen ? 'rgba(255,255,255,0.5)' : '#fbbf24'),
-            width: '100%', fontSize: '14px', fontWeight: 500
-          }}
+          className={`bg-transparent border-none outline-none w-full text-sm font-medium ${
+            isOpen && query ? 'text-stone-900 dark:text-white' : (isOpen ? 'text-stone-400 dark:text-white/50 placeholder:text-stone-400 dark:placeholder:text-white/50' : 'text-[#cba358] dark:text-amber-400')
+          }`}
         />
         {isOpen && query && (
           <svg 
             onClick={(e) => { e.stopPropagation(); setQuery(''); }}
-            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" 
-            style={{ cursor: 'pointer', marginLeft: '8px', flexShrink: 0 }}
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" 
+            className="cursor-pointer ml-2 shrink-0 text-stone-400 dark:text-white/50 hover:text-stone-600 dark:hover:text-white/80"
           >
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -72,52 +70,48 @@ export const CitySearchDropdown = ({ cities, selectedCity, onSelect }: { cities:
       </div>
 
       {isOpen && (
-        <div className="city-info-enter" style={{
-          position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: '100%',
-          background: 'rgba(10,8,4,0.85)', border: '1px solid rgba(245,158,11,0.2)',
-          borderRadius: '14px', backdropFilter: 'blur(14px)', maxHeight: '340px',
-          overflowY: 'auto', zIndex: 20, padding: '8px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-        }}>
-          <div style={{ display: 'grid', gap: '4px' }}>
+        <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white/95 dark:bg-black/85 border border-zinc-200 dark:border-amber-500/20 rounded-[14px] backdrop-blur-md max-h-[340px] overflow-y-auto z-20 p-2 shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+          <div className="grid gap-1">
             {filteredCities.length > 0 ? filteredCities.map(city => {
               const isActive = city.id === selectedCity.id;
               return (
                 <div
                   key={city.id}
                   onClick={() => { onSelect(city.id); setIsOpen(false); setQuery(''); }}
-                  style={{
-                    padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
-                    background: isActive ? 'rgba(245,158,11,0.15)' : 'transparent',
-                    display: 'flex', flexDirection: 'column', gap: '4px',
-                    transition: 'background 0.2s',
-                  }}
-                  onMouseEnter={(e) => !isActive && (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                  onMouseLeave={(e) => !isActive && (e.currentTarget.style.background = 'transparent')}
+                  className={`flex flex-col gap-1 p-2.5 rounded-[10px] cursor-pointer transition-colors ${
+                    isActive ? 'bg-zinc-100 dark:bg-amber-500/15' : 'hover:bg-stone-50 dark:hover:bg-white/5'
+                  }`}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{
-                        display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%',
-                        background: isActive ? '#fbbf24' : 'rgba(255,255,255,0.2)',
-                        boxShadow: isActive ? '0 0 8px rgba(245,158,11,0.8)' : 'none',
-                      }} />
-                      <span style={{ fontSize: '14px', fontWeight: isActive ? 600 : 400, color: isActive ? '#fbbf24' : '#fff' }}>
+                  <div className="flex items-center gap-2 justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#cba358] shadow-[0_0_8px_rgba(203,163,88,0.6)] dark:bg-amber-400 dark:shadow-[0_0_8px_rgba(251,191,36,0.6)]' : 'bg-stone-300 dark:bg-white/20'}`} />
+                      <span className={`text-sm font-medium ${isActive ? 'text-[#cba358] dark:text-amber-400' : 'text-stone-700 dark:text-white/80'}`}>
                         {pickLocalizedText(city.name, isZh)}
                       </span>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[10px] text-amber-100">
+                    <span className={`text-xs font-semibold ${isActive ? 'text-[#cba358] dark:text-amber-400' : 'text-stone-500 dark:text-white/60'}`}>
                       ¥{city.priceCNY}
                     </span>
                   </div>
-                  <div style={{ paddingLeft: '14px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: "'Fira Code', monospace" }}>
-                     {formatLatitude(city.lat)} · {formatLongitude(city.lon)}
+                  <div className="flex items-center gap-3 pl-3.5 mt-1">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-stone-400 dark:text-white/40 uppercase tracking-wider">Lat / Lon</span>
+                      <span className="text-[10px] text-stone-500 dark:text-white/60 font-mono">
+                        {formatLatitude(city.lat)} {formatLongitude(city.lon)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-stone-400 dark:text-white/40 uppercase tracking-wider">Timezone</span>
+                      <span className="text-[10px] text-stone-500 dark:text-white/60 font-mono">
+                        {city.timezone}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              )
+              );
             }) : (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-                {isZh ? "未找到匹配的城市" : "No matching city found"}
+              <div className="py-8 text-center text-sm text-stone-400 dark:text-white/50">
+                {isZh ? "未找到匹配的城市" : "No cities found"}
               </div>
             )}
           </div>

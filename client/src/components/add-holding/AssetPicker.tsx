@@ -1,11 +1,11 @@
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
@@ -25,6 +25,7 @@ import type {
   FundSubCategory,
   StockSubCategory,
 } from "./catalog";
+import { filterAssetOptions } from "./options";
 
 type Props = {
   isZh: boolean;
@@ -135,6 +136,14 @@ export function AssetPicker({
     ? "优先显示可直接获取价格的 ETF / 基金代码；部分仅支持 ISIN 的国际基金在当前公开行情源下可能搜不到或无法报价。"
     : "Results prioritize ETFs and fund symbols with direct public pricing; some ISIN-only international funds may be unavailable or unpriceable with the current public data sources.";
 
+  const filteredAssets = useMemo(
+    () =>
+      remoteSearch
+        ? assetsInCategory
+        : filterAssetOptions(assetsInCategory, searchValue),
+    [assetsInCategory, remoteSearch, searchValue]
+  );
+
   return (
     <div className="space-y-2 min-w-0">
       <Label htmlFor="asset">{isZh ? "资产" : "Asset"}</Label>
@@ -183,25 +192,21 @@ export function AssetPicker({
           className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0"
           align="start"
         >
-          <Command shouldFilter={!remoteSearch}>
-            {remoteSearch ? (
-              <div className="border-b px-2 py-2">
-                <Input
-                  value={searchValue}
-                  onChange={e => onInputChange(e.target.value)}
-                  placeholder={placeholder}
-                  className="border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
-                {selectedCategory === "fund" &&
-                selectedFundSubCategory === "international_fund" ? (
-                  <p className="text-muted-foreground pt-2 text-xs leading-5">
-                    {internationalFundHint}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <CommandInput placeholder="Type symbol or name..." />
-            )}
+          <Command shouldFilter={false}>
+            <div className="border-b px-2 py-2">
+              <Input
+                value={searchValue}
+                onChange={e => onInputChange(e.target.value)}
+                placeholder={placeholder}
+                className="border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              {selectedCategory === "fund" &&
+              selectedFundSubCategory === "international_fund" ? (
+                <p className="text-muted-foreground pt-2 text-xs leading-5">
+                  {internationalFundHint}
+                </p>
+              ) : null}
+            </div>
             <CommandList>
               {isLoading ? (
                 <div className="flex items-center justify-center py-4 text-muted-foreground">
@@ -216,7 +221,7 @@ export function AssetPicker({
                 <>
                   <CommandEmpty>{emptyText}</CommandEmpty>
                   <CommandGroup>
-                    {assetsInCategory.map(asset => (
+                    {filteredAssets.map(asset => (
                       <CommandItem
                         key={asset.symbol}
                         value={`${asset.symbol} ${asset.name} ${(asset.keywords ?? []).join(" ")}`}

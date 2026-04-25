@@ -99,36 +99,36 @@ export default function NoodlePanel({
 
   return (
     <div
-      className={`flex flex-col overflow-hidden rounded-3xl border border-amber-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(180,83,9,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.12),_transparent_22%),linear-gradient(135deg,_rgba(2,6,23,1),_rgba(15,10,5,0.98)_42%,_rgba(4,4,6,1))] p-4 text-white/90 shadow-[0_0_0_1px_rgba(245,158,11,0.08),0_24px_60px_-24px_rgba(217,119,6,0.3)] sm:p-5 ${className ?? ""}`}
+      className={`flex flex-col overflow-hidden rounded-3xl border border-zinc-200 dark:border-amber-500/20 bg-gradient-to-br from-zinc-50/50 via-white to-zinc-100/30 dark:bg-[radial-gradient(circle_at_top_left,_rgba(180,83,9,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.12),_transparent_22%),linear-gradient(135deg,_rgba(20,10,0,1),_rgba(15,10,5,0.98)_42%,_rgba(8,4,0,1))] p-4 text-stone-900 dark:text-white/90 shadow-sm dark:shadow-[0_0_0_1px_rgba(245,158,11,0.08),0_24px_60px_-24px_rgba(217,119,6,0.3)] sm:p-5 ${className ?? ""}`}
     >
       <style>{`
         @keyframes noodle-pulse { 0%, 100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.16); } }
       `}</style>
 
-      <div className="shrink-0 flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="shrink-0 flex flex-col gap-4 border-b border-stone-200 dark:border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.28em] text-amber-300/80">
+          <div className="text-[11px] uppercase tracking-[0.28em] text-[#cba358] dark:text-amber-300/80">
             {pickLocalizedText(NOODLE_PANEL_TEXT.eyebrow, isZh)}
           </div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900 dark:text-white sm:text-3xl">
             {pickLocalizedText(NOODLE_PANEL_TEXT.title, isZh)}
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600 dark:text-white/70">
             {pickLocalizedText(NOODLE_PANEL_TEXT.description, isZh)}
           </p>
         </div>
 
-        <div className="shrink-0 rounded-2xl border border-amber-400/20 bg-white/[0.03] px-5 py-4 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <p className="text-xs uppercase tracking-[0.24em] text-white/55">
+        <div className="shrink-0 rounded-2xl border border-zinc-200 dark:border-amber-400/20 bg-white dark:bg-white/[0.03] px-5 py-4 text-right shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <p className="text-xs uppercase tracking-[0.24em] text-stone-500 dark:text-white/55">
             {pickLocalizedText(NOODLE_PANEL_TEXT.totalAssets, isZh)}
           </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums text-white sm:text-3xl">
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-stone-900 dark:text-white sm:text-3xl">
             ¥
             {noodleVizData.totalValueCNY.toLocaleString("en-US", {
               maximumFractionDigits: 0,
             })}
           </p>
-          <p className="mt-1.5 text-xs text-white/60">
+          <p className="mt-1.5 text-xs text-stone-500 dark:text-white/60">
             {isZh
               ? `按 1 USD = ${exchangeRate.toFixed(4)} CNY 换算。`
               : `1 USD = ${exchangeRate.toFixed(4)} CNY`}
@@ -137,17 +137,19 @@ export default function NoodlePanel({
       </div>
 
       <div className="mt-5 flex-1 min-h-0 grid gap-5 lg:grid-cols-[minmax(400px,1fr)_320px]">
-        <div className="relative overflow-hidden rounded-[32px] border border-amber-400/15 bg-transparent h-full min-h-[400px]">
-          <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(245,158,11,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.08)_1px,transparent_1px)] [background-size:32px_32px]" />
+        <div className="relative rounded-[32px] border border-zinc-200 dark:border-amber-400/15 bg-white/50 dark:bg-transparent h-full min-h-[400px]">
+          <div className="pointer-events-none absolute inset-0 rounded-[32px] overflow-hidden">
+            <div className="absolute inset-0 opacity-20 dark:opacity-20 [background-image:linear-gradient(rgba(0,0,0,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.1)_1px,transparent_1px)] dark:[background-image:linear-gradient(rgba(245,158,11,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.08)_1px,transparent_1px)] [background-size:32px_32px]" />
+          </div>
 
-          <div className="absolute inset-0 flex items-center justify-center translate-x-[15%]">
+          <div className="absolute inset-0 rounded-[32px] overflow-hidden flex items-center justify-center translate-x-[15%]">
             <InteractiveGlobe
               selectedCity={selectedLocation}
               allCities={NOODLE_LOCATIONS}
             />
           </div>
 
-          <div className="absolute top-6 left-6 z-20">
+          <div className="absolute top-6 left-6 z-50">
             <CitySearchDropdown
               cities={NOODLE_LOCATIONS}
               selectedCity={selectedLocation}
@@ -158,18 +160,18 @@ export default function NoodlePanel({
           <div key={selectedLocation.id} className="absolute bottom-6 left-6 z-20 animate-in fade-in slide-in-from-bottom-2 duration-500 pointer-events-none">
             <div className="mb-2 flex items-center gap-2">
               <PulsingDot />
-              <span className="text-lg font-semibold tracking-tight text-white drop-shadow-md">
+              <span className="text-lg font-semibold tracking-tight text-stone-900 dark:text-white drop-shadow-md">
                 {getLocationName(selectedLocation)}
               </span>
             </div>
-            <div className="flex gap-4 border-t border-white/15 pt-2.5">
-              <span className="font-mono text-[10px] text-white/70 drop-shadow-md">
+            <div className="flex gap-4 border-t border-stone-300 dark:border-white/15 pt-2.5">
+              <span className="font-mono text-[10px] text-stone-600 dark:text-white/70 drop-shadow-md">
                 {formatLatitude(selectedLocation.lat)}
               </span>
-              <span className="font-mono text-[10px] text-white/70 drop-shadow-md">
+              <span className="font-mono text-[10px] text-stone-600 dark:text-white/70 drop-shadow-md">
                 {formatLongitude(selectedLocation.lon)}
               </span>
-              <span className="font-mono text-[10px] text-amber-300/80 drop-shadow-md">
+              <span className="font-mono text-[10px] text-[#cba358] dark:text-amber-300/80 drop-shadow-md">
                 {selectedLocation.timezone}
               </span>
             </div>
@@ -177,25 +179,25 @@ export default function NoodlePanel({
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[28px] border border-amber-400/20 bg-white/[0.03] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <p className="text-[11px] uppercase tracking-[0.28em] text-amber-300/80">
+          <div className="rounded-[28px] border border-zinc-200 dark:border-amber-400/20 bg-white dark:bg-white/[0.03] p-5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-[#cba358] dark:text-amber-300/80">
               {pickLocalizedText(NOODLE_PANEL_TEXT.todayCapacity, isZh)}
             </p>
-            <div className="mt-4 text-[2.2rem] font-semibold leading-none tracking-tight text-white sm:text-[2.8rem]">
+            <div className="mt-4 text-[2.2rem] font-semibold leading-none tracking-tight text-stone-900 dark:text-white sm:text-[2.8rem]">
               {isZh
                 ? formatBowlsZh(noodleVizData.bowlsToday)
                 : formatBowlsEn(noodleVizData.bowlsToday)}
             </div>
             <div className="mt-3 flex items-center gap-2 text-sm">
-              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">
+              <span className="rounded-full border border-zinc-200 dark:border-amber-300/20 bg-zinc-100 dark:bg-amber-400/10 px-2.5 py-1 text-zinc-800 dark:text-amber-100">
                 {getLocationName(selectedLocation)}
               </span>
               <span
                 className={`${
                   noodleVizData.bowlsDelta != null &&
                   noodleVizData.bowlsDelta >= 0
-                    ? "text-emerald-300"
-                    : "text-rose-300"
+                    ? "text-emerald-600 dark:text-emerald-300"
+                    : "text-rose-600 dark:text-rose-300"
                 }`}
               >
                 {historyLoading
@@ -213,34 +215,34 @@ export default function NoodlePanel({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-[0.24em] text-white/55">
+            <div className="rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.24em] text-stone-500 dark:text-white/55">
                 {pickLocalizedText(NOODLE_PANEL_TEXT.threeBowlsPerDay, isZh)}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-white">
+              <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-white">
                 {yearsAtThreeBowls.toFixed(1)}{" "}
                 {pickLocalizedText(NOODLE_PANEL_TEXT.yearsUnit, isZh)}
               </p>
-              <p className="mt-2 text-xs text-white/60">
+              <p className="mt-2 text-xs text-stone-600 dark:text-white/60">
                 {pickLocalizedText(NOODLE_PANEL_TEXT.runwayDescription, isZh)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-amber-400/15 bg-amber-500/5 p-4 shadow-[0_0_40px_rgba(245,158,11,0.06)]">
-              <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">
+            <div className="rounded-2xl border border-zinc-200 dark:border-amber-400/15 bg-zinc-50 dark:bg-amber-500/5 p-4 shadow-sm dark:shadow-[0_0_40px_rgba(245,158,11,0.06)]">
+              <p className="text-xs uppercase tracking-[0.24em] text-[#cba358] dark:text-amber-200/80">
                 {pickLocalizedText(NOODLE_PANEL_TEXT.inflationStress, isZh)}
               </p>
               <div className="mt-2 flex items-baseline gap-2">
-                <p className="text-xl font-semibold text-white">
+                <p className="text-xl font-semibold text-stone-900 dark:text-white">
                   {isZh
                     ? formatBowlsZh(bowlsInflationAdjusted)
                     : formatBowlsEn(bowlsInflationAdjusted)}
                 </p>
-                <span className="text-sm font-medium text-amber-300/80">
+                <span className="text-sm font-medium text-[#cba358] dark:text-amber-300/80">
                   ({yearsInflationAdjusted.toFixed(1)} {pickLocalizedText(NOODLE_PANEL_TEXT.yearsUnit, isZh)})
                 </span>
               </div>
-              <p className="mt-2 text-xs leading-5 text-white/65">
+              <p className="mt-2 text-xs leading-5 text-stone-600 dark:text-white/65">
                 {pickLocalizedText(
                   NOODLE_PANEL_TEXT.inflationDescription,
                   isZh

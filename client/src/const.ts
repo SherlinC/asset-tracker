@@ -1,7 +1,13 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
+const parseBooleanEnv = (value: string | undefined): boolean =>
+  value === "1" || value?.toLowerCase() === "true";
+
 export const isOAuthConfigured = (): boolean =>
   Boolean(import.meta.env.VITE_OAUTH_PORTAL_URL && import.meta.env.VITE_APP_ID);
+
+export const isPublicGuestOnly = (): boolean =>
+  parseBooleanEnv(import.meta.env.VITE_PUBLIC_GUEST_ONLY);
 
 const GUEST_MODE_COOKIE = "asset_tracker_guest_mode";
 

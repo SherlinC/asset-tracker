@@ -5,6 +5,7 @@ import { DEFAULT_USD_CNY_RATE } from "@shared/exchangeRates";
 
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
+import { verifyLocalPassword } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import {
@@ -293,7 +294,11 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     localAccounts: publicProcedure.query(async () => {
-      if (ENV.isProduction || ENV.oAuthServerUrl.length > 0) {
+      if (
+        ENV.publicGuestOnly ||
+        ENV.isProduction ||
+        ENV.oAuthServerUrl.length > 0
+      ) {
         return [];
       }
 
@@ -312,26 +317,71 @@ export const appRouter = router({
     localLogin: publicProcedure
       .input(
         z.object({
-          openId: z.string().min(1),
+          username: z.string().min(1),
+          password: z.string().min(1),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (ENV.publicGuestOnly) {
+          throw new Error("Login is disabled in public guest-only mode.");
+        }
+
         if (ENV.isProduction || ENV.oAuthServerUrl.length > 0) {
           throw new Error("Local login is not available in this environment.");
         }
 
-        const user = await db.getUserByOpenId(input.openId);
-
-        if (!user) {
-          throw new Error("Account not found.");
+        if (
+          ENV.localLoginUsername.length === 0 ||
+          ENV.localLoginPasswordHash.length === 0
+        ) {
+          throw new Error("Local login is not configured.");
         }
 
-        await db.upsertUser({
-          openId: user.openId,
-          lastSignedIn: new Date(),
-        });
+        const hasValidUsername = input.username === ENV.localLoginUsername;
+        const hasValidPassword = verifyLocalPassword(
+          input.password,
+          ENV.localLoginPasswordHash
+        );
 
-        const sessionToken = await sdk.createSessionToken(user.openId, {
+        if (!hasValidUsername || !hasValidPassword) {
+          throw new Error("Invalid username or password.");
+        }
+
+        if (ENV.ownerOpenId.length === 0) {
+          throw new Error("OWNER_OPEN_ID is required for local login.");
+        }
+
+        const openId = ENV.ownerOpenId;
+
+        let user = await db.getUserByOpenId(openId);
+
+        // Create user if not exists
+        if (!user) {
+          await db.upsertUser({
+            openId,
+            name: ENV.localLoginDisplayName || ENV.localLoginUsername,
+            email: ENV.localLoginEmail || null,
+            loginMethod: "local",
+            lastSignedIn: new Date(),
+          });
+          // Get the created user
+          user = await db.getUserByOpenId(openId);
+        } else {
+          // Update last signed in time
+          await db.upsertUser({
+            openId,
+            lastSignedIn: new Date(),
+          });
+          // Get the updated user
+          user = await db.getUserByOpenId(openId);
+        }
+
+        // Ensure user exists
+        if (!user) {
+          throw new Error("Failed to create or get user.");
+        }
+
+        const sessionToken = await sdk.createSessionToken(openId, {
           name: user.name || "",
           expiresInMs: ONE_YEAR_MS,
         });

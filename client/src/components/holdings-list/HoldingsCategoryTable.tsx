@@ -20,10 +20,7 @@ import {
 import { getLocalizedAssetName } from "@/lib/assetLocalization";
 
 import {
-  TYPE_LABELS_ZH,
-  getAssetSubTypeLabel,
   getProfitLossColor,
-  getTypeColor,
 } from "./constants";
 import { formatDateTime, formatMoney, formatQuantity } from "./utils";
 
@@ -66,7 +63,6 @@ export function HoldingsCategoryTable({
         <TableHeader>
           <TableRow>
             <TableHead>{isZh ? "资产" : "Asset"}</TableHead>
-            <TableHead>{isZh ? "类型" : "Type"}</TableHead>
             <TableHead className="text-right">
               {isZh ? "数量" : "Quantity"}
             </TableHead>
@@ -107,7 +103,6 @@ export function HoldingsCategoryTable({
               change24h,
             } = group;
             const isExpanded = expandedAssets[asset.id] ?? false;
-            const assetSubType = getAssetSubTypeLabel(asset);
             const currentPriceDisplay =
               currencyDisplay === "USD"
                 ? currentPriceUSD
@@ -192,23 +187,6 @@ export function HoldingsCategoryTable({
                             : `${records.length} operation record${records.length > 1 ? "s" : ""}`}
                         </p>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      <span
-                        className={`inline-block rounded px-2 py-1 text-xs font-medium ${getTypeColor(asset.type)}`}
-                      >
-                        {isZh
-                          ? (TYPE_LABELS_ZH[asset.type] ?? asset.type)
-                          : asset.type.charAt(0).toUpperCase() +
-                            asset.type.slice(1)}
-                      </span>
-                      {assetSubType ? (
-                        <span className="text-xs text-muted-foreground">
-                          {assetSubType}
-                        </span>
-                      ) : null}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -299,7 +277,7 @@ export function HoldingsCategoryTable({
                 </TableRow>
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={10} className="bg-muted/20 py-0">
+                    <TableCell colSpan={9} className="bg-muted/20 py-0">
                       <div className="space-y-2 px-4 py-3">
                         <div className="text-sm font-medium text-foreground">
                           {isZh ? "操作记录" : "Operation records"}

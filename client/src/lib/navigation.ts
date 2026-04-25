@@ -12,7 +12,7 @@ export type LocalizedText = {
 };
 
 export const ROUTE_PATHS = {
-  home: "/",
+  home: "/home",
   dashboard: "/dashboard",
   importPreview: "/import-preview",
   spendover: "/spendover",

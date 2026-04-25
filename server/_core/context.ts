@@ -24,7 +24,7 @@ export async function createContext(
 
   const buildFallbackUser = (): User => {
     const now = new Date();
-    const fallbackName = ENV.devUserEmail
+    const fallbackName = !ENV.publicGuestOnly && ENV.devUserEmail
       ? ENV.devUserEmail.split("@")[0] || "Guest User"
       : "Guest User";
 
@@ -42,26 +42,29 @@ export async function createContext(
   };
 
   if (!user) {
-    try {
-      user = await sdk.authenticateRequest(opts.req);
-    } catch {
-      user = null;
+    if (ENV.publicGuestOnly) {
+      user = buildFallbackUser();
     }
-  }
 
-  if (!user) {
     try {
-      if (
-        !hasGuestMode &&
-        !ENV.isProduction &&
-        !ENV.oAuthServerUrl &&
-        ENV.devUserEmail.length > 0
-      ) {
-        user = await db.getOrCreateDevUser(ENV.devUserEmail);
-      }
-
-      if (!user) {
+      // Check for guest mode first
+      if (user) {
+        // Public guest-only mode already resolves to guest access.
+      } else if (hasGuestMode) {
         user = buildFallbackUser();
+      } else {
+        // Try to authenticate user
+        user = await sdk.authenticateRequest(opts.req);
+        
+        // If authentication fails, try to get dev user in non-production environment
+        if (!user && !ENV.isProduction && !ENV.oAuthServerUrl && ENV.devUserEmail.length > 0) {
+          user = await db.getOrCreateDevUser(ENV.devUserEmail);
+        }
+        
+        // If all fails, use fallback user
+        if (!user) {
+          user = buildFallbackUser();
+        }
       }
     } catch (err) {
       console.warn("[Guest access fallback]", (err as Error).message);

@@ -1,19 +1,21 @@
 import { Route, Switch } from "wouter";
+import { lazy, Suspense } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_ROUTES, type RouteComponentKey } from "@/lib/navigation";
-import Dashboard from "@/pages/Dashboard";
-import ImportPreviewPage from "@/pages/ImportPreviewPage";
-import NoodlePage from "@/pages/NoodlePage";
-import NotFound from "@/pages/NotFound";
-import StrategyPage from "@/pages/StrategyPage";
-import WalletPlanningPage from "@/pages/WalletPlanningPage";
 
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+
+const Home = lazy(() => import("./pages/Home"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const ImportPreviewPage = lazy(() => import("./pages/ImportPreviewPage"));
+const NoodlePage = lazy(() => import("./pages/NoodlePage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const StrategyPage = lazy(() => import("./pages/StrategyPage"));
+const WalletPlanningPage = lazy(() => import("./pages/WalletPlanningPage"));
 
 const ROUTE_COMPONENTS: Record<RouteComponentKey, () => React.JSX.Element> = {
   home: Home,
@@ -29,19 +31,28 @@ const ROUTE_COMPONENTS: Record<RouteComponentKey, () => React.JSX.Element> = {
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
-      {APP_ROUTES.map(route => {
-        const Component = ROUTE_COMPONENTS[route.component];
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <Switch>
+        {APP_ROUTES.map(route => {
+          const Component = ROUTE_COMPONENTS[route.component];
 
-        return (
-          <Route key={route.path} path={route.path}>
-            {() => <Component />}
-          </Route>
-        );
-      })}
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+          return (
+            <Route key={route.path} path={route.path}>
+              {() => <Component />}
+            </Route>
+          );
+        })}
+        {/* Redirect root path to /home */}
+        <Route path="/">
+          {() => {
+            window.location.href = "/home";
+            return null;
+          }}
+        </Route>
+        {/* Final fallback route */}
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

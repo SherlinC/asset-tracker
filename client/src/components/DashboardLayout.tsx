@@ -1,11 +1,8 @@
 import {
-  ChevronsUpDown,
   Download,
   Languages,
-  LayoutDashboard,
   LogOut,
   Moon,
-  PanelLeft,
   Plus,
   Sun,
   UtensilsCrossed,
@@ -37,20 +34,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { enableGuestMode } from "@/const";
-import { useLanguage } from "@/hooks/useLanguage";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/useMobile";
 import { usePortfolioData } from "@/hooks/usePortfolioData";
 import { usePortfolioRefresh } from "@/hooks/usePortfolioRefresh";
 import { downloadCurrentHoldingsWorkbook } from "@/lib/excelExport";
 import {
   DASHBOARD_NAV_ITEMS,
-  ROUTE_PATHS,
   pickLocalizedText,
 } from "@/lib/navigation";
 import { trpc } from "@/lib/trpc";
@@ -80,14 +73,14 @@ function buildDisplayName(
     return name;
   }
 
-  return SIMULATED_USER.name;
+  return isZh ? "用户" : "User";
 }
 
 function buildInitials(name: string) {
   const normalized = name.trim();
 
   if (!normalized) {
-    return SIMULATED_USER.initials;
+    return "U";
   }
 
   const segments = normalized.split(/\s+/).filter(Boolean);
@@ -157,19 +150,18 @@ function DashboardLayoutContent({
   });
   const systemHealth = trpc.system.health.useQuery({ timestamp: 1 });
   const [isExportingData, setIsExportingData] = useState(false);
+  const [isGuestLogoutHintActive, setIsGuestLogoutHintActive] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [location, setLocation] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === "collapsed";
   const displayName = buildDisplayName(
     user?.name ?? user?.email,
     isGuestMode,
     isZh
   );
   const displayUser = {
-    ...SIMULATED_USER,
     name: displayName,
     initials: buildInitials(displayName),
+    avatar: isGuestMode ? "/avatars/guest.svg" : SIMULATED_USER.avatar,
   };
   const availableExportHoldings = exportHoldings ?? portfolioData.holdings;
   const isExportDataLoading =
@@ -192,6 +184,8 @@ function DashboardLayoutContent({
         exportLoading: "正在加载可导出的持仓数据，请稍后重试。",
         exportStarted: "当前数据已开始导出",
         exportFailed: "当前数据导出失败，请稍后重试。",
+        guestLogoutReminder:
+          "游客模式的数据仅保存在当前浏览器。退出前建议先导出资产，否则下次进入时将无法保留你本次录入的资产信息。",
       }
     : {
         expand: "Expand sidebar",
@@ -206,6 +200,8 @@ function DashboardLayoutContent({
           "Exportable holdings are still loading. Please try again.",
         exportStarted: "Current data export started",
         exportFailed: "Failed to export current data. Please try again.",
+        guestLogoutReminder:
+          "Guest-mode data is stored only in this browser. Export your assets before logging out, or the portfolio you entered this time will not be retained the next time you enter.",
       };
 
   const handleExportCurrentData = async () => {
@@ -300,7 +296,11 @@ function DashboardLayoutContent({
                 onClick={handleExportCurrentData}
                 disabled={isExportingData || isExportDataLoading}
                 variant="outline"
-                className="w-full h-10 justify-start gap-2 rounded-xl group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                className={`w-full h-10 justify-start gap-2 rounded-xl transition-all group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 ${
+                  isGuestMode && isGuestLogoutHintActive
+                    ? "border-amber-400/80 bg-amber-50 text-amber-950 shadow-[0_0_0_1px_rgba(251,191,36,0.18),0_10px_24px_-12px_rgba(245,158,11,0.55)] hover:bg-amber-100 dark:border-amber-300/50 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15"
+                    : ""
+                }`}
               >
                 <Download className="h-4 w-4" />
                 <span className="group-data-[collapsible=icon]:hidden">
@@ -380,16 +380,26 @@ function DashboardLayoutContent({
                       )}
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={async () => {
-                        enableGuestMode();
-                        await logout();
-                        setLocation(ROUTE_PATHS.home);
-                      }}
-                    >
+                    <DropdownMenuItem onClick={logout}>
                       <LogOut className="mr-2 size-4" />
                       {isZh ? "退出登录" : "Log out"}
                     </DropdownMenuItem>
+                    {isGuestMode ? (
+                      <div
+                        className="px-2 pt-2 pb-1"
+                        onMouseEnter={() => setIsGuestLogoutHintActive(true)}
+                        onMouseLeave={() => setIsGuestLogoutHintActive(false)}
+                        onFocus={() => setIsGuestLogoutHintActive(true)}
+                        onBlur={() => setIsGuestLogoutHintActive(false)}
+                      >
+                        <div className="rounded-md border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-muted-foreground dark:text-amber-100/80">
+                          <div className="flex items-start gap-2">
+                            <Download className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                            <span>{text.guestLogoutReminder}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </DropdownMenuContent>
                   </DropdownMenu>
                 </SidebarMenuItem>
